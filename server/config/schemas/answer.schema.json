@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "prompt_profile": {
+      "default": "default",
+      "title": "Prompt Profile",
+      "type": "string"
+    },
+    "answer_length": {
+      "default": "medium",
+      "pattern": "^(short|medium|long)$",
+      "title": "Answer Length",
+      "type": "string"
+    },
+    "data_fact_units": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Data Fact Units",
+      "type": "array"
+    },
+    "authority_types": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Authority Types",
+      "type": "array"
+    },
+    "role_words": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Role Words",
+      "type": "array"
+    }
+  },
+  "title": "AnswerConfig",
+  "type": "object"
+}

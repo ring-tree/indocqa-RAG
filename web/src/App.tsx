@@ -6,6 +6,7 @@ import type {
 import Sidebar from "./components/Sidebar";
 import ChatView from "./pages/ChatView";
 import DocsView from "./pages/DocsView";
+import EngineConsole from "./pages/EngineConsole";
 import { deleteSession, fetchSessions } from "./lib/api";
 import type { Session } from "./lib/types";
 
@@ -47,7 +48,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
 }
 
 export default function App() {
-  const [tab, setTab] = useState<"chat" | "docs">("chat");
+  const [tab, setTab] = useState<"chat" | "docs" | "engine">("chat");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -105,7 +106,7 @@ export default function App() {
     setSidebarOpen(false);
   }, []);
 
-  const changeTab = useCallback((next: "chat" | "docs") => {
+  const changeTab = useCallback((next: "chat" | "docs" | "engine") => {
     setTab(next);
     setSidebarOpen(false);
   }, []);
@@ -347,6 +348,7 @@ export default function App() {
             active={tab === "chat"}
           />
           <DocsView className={tab === "docs" ? "" : "hidden"} onChanged={refreshKb} />
+          <EngineConsole className={tab === "engine" ? "" : "hidden"} />
         </main>
       </div>
     </div>

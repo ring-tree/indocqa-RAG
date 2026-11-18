@@ -5,9 +5,9 @@ import type { Session } from "../lib/types";
 interface Props {
   sessions: Session[];
   activeId: string | null;
-  tab: "chat" | "docs";
+  tab: "chat" | "docs" | "engine";
   subtitle?: string;
-  onTab: (tab: "chat" | "docs") => void;
+  onTab: (tab: "chat" | "docs" | "engine") => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
@@ -122,6 +122,13 @@ function Sidebar({
           aria-current={tab === "docs" ? "page" : undefined}
         >
           文档管理
+        </button>
+        <button
+          type="button"
+          onClick={() => onTab("engine")}
+          aria-current={tab === "engine" ? "page" : undefined}
+        >
+          引擎配置
         </button>
       </nav>
 

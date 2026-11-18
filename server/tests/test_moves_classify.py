@@ -100,9 +100,6 @@ def test_classify_gate_without_model(tmp_settings, monkeypatch):
         "INDOCQA_LLM_BASE_URL",
         "INDOCQA_LLM_API_KEY",
         "INDOCQA_LLM_MODEL",
-        "INDOCQA_LLM_BACKUP_BASE_URL",
-        "INDOCQA_LLM_BACKUP_API_KEY",
-        "INDOCQA_LLM_BACKUP_MODEL",
     ):
         monkeypatch.setenv(var, "")
     get_settings.cache_clear()
@@ -125,9 +122,6 @@ def test_preview_classification_reports_unavailable_without_model(tmp_settings, 
         "INDOCQA_LLM_BASE_URL",
         "INDOCQA_LLM_API_KEY",
         "INDOCQA_LLM_MODEL",
-        "INDOCQA_LLM_BACKUP_BASE_URL",
-        "INDOCQA_LLM_BACKUP_API_KEY",
-        "INDOCQA_LLM_BACKUP_MODEL",
     ):
         monkeypatch.setenv(var, "")
     get_settings.cache_clear()

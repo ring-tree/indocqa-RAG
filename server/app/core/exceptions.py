@@ -124,7 +124,7 @@ class AIUnavailableError(AppError):
 
 
 class UpstreamError(AppError):
-    """42901 上游模型限流或不可用（已尝试主备切换）。"""
+    """42901 上游模型限流或不可用（已尝试所有候选模型）。"""
 
     code = 42901
     http_status = 502
@@ -135,3 +135,38 @@ class RetrievalError(AppError):
 
     code = 50001
     http_status = 500
+
+
+class KnowledgeBaseNotFoundError(AppError):
+    """40402 知识库不存在。"""
+
+    code = 40402
+    http_status = 404
+
+
+class ConfigInvalidError(AppError):
+    """40007 配置 Schema 校验失败。"""
+
+    code = 40007
+    http_status = 400
+
+
+class FieldLockedError(AppError):
+    """40008 试图修改只读字段。"""
+
+    code = 40008
+    http_status = 400
+
+
+class BuildNotFoundError(AppError):
+    """40405 Build 不存在。"""
+
+    code = 40405
+    http_status = 404
+
+
+class BuildStateConflictError(AppError):
+    """40905 当前 Build 状态不允许该操作。"""
+
+    code = 40905
+    http_status = 409

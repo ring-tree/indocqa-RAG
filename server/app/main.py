@@ -19,6 +19,8 @@ from app.api.health import router as health_router
 from app.api.kb import router as kb_router
 from app.api.models import router as models_router
 from app.api.sessions import router as sessions_router
+from app.api.v1.errors import error_meta
+from app.api.v1.router import router as v1_router
 from app.attachments import storage as attachment_storage
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -103,12 +105,17 @@ def create_app() -> FastAPI:
     app.include_router(kb_router)
     app.include_router(attachments_router)
     app.include_router(sessions_router)
+    # 新引擎并行入口：只挂 /api/v1，不替换旧 /api
+    app.include_router(v1_router)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
         request_id = request.headers.get("X-Request-Id") or uuid4().hex[:12]
+        request.state.request_id = request_id
         start = time.perf_counter()
         response = await call_next(request)
+        if request.url.path.startswith("/api/v1"):
+            response.headers["X-API-Version"] = "1"
         response.headers["X-Request-Id"] = request_id
         logger.info(
             "%s %s -> %s (%.0f ms) [%s]",
@@ -122,21 +129,41 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
+        name, retryable = error_meta(exc.code)
+        request_id = getattr(request.state, "request_id", None) or request.headers.get(
+            "X-Request-Id"
+        )
         return JSONResponse(
             status_code=exc.http_status,
-            content={"error": {"code": exc.code, "message": exc.message, "detail": exc.detail}},
+            content={
+                "error": {
+                    "code": exc.code,
+                    "name": name,
+                    "message": exc.message,
+                    "detail": exc.detail,
+                    "retryable": retryable,
+                    "requestId": request_id,
+                }
+            },
         )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         """pydantic 校验失败也走统一错误包，避免 422 默认结构泄漏到前端。"""
+        name, retryable = error_meta(40001)
+        request_id = getattr(request.state, "request_id", None) or request.headers.get(
+            "X-Request-Id"
+        )
         return JSONResponse(
             status_code=400,
             content={
                 "error": {
                     "code": 40001,
+                    "name": name,
                     "message": "参数校验失败",
                     "detail": jsonable_encoder(exc.errors()),
+                    "retryable": retryable,
+                    "requestId": request_id,
                 }
             },
         )

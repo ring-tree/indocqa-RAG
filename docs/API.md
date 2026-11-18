@@ -45,7 +45,7 @@
 }
 ```
 
-FastAPI/Pydantic 的请求体校验失败返回 HTTP 422，结构为默认的 `detail` 数组。
+FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `40001`，`detail` 为字段错误数组（不再返回默认 422 结构）。
 
 ### 1.3 常用限制
 
@@ -140,7 +140,7 @@ FastAPI/Pydantic 的请求体校验失败返回 HTTP 422，结构为默认的 `d
 | `mode` | string | 是 | `kb` 知识库问答；`direct` 直接对话 |
 | `sessionId` | string | 否 | 会话 ID；不传则自动新建 |
 | `attachmentIds` | string[] | 否 | 会话附件 ID，最多 10 个；需先调用 `/api/uploads/*` 完成上传 |
-| `profile` | string | 否 | 模型 profile ID；`auto`/不传为按主备顺序 |
+| `profile` | string | 否 | 模型 profile ID；`auto`/不传为按主供应商→扩展供应商顺序 |
 | `topK` | int | 否 | 检索条数，1–20；不传用意图默认值 |
 | `folder` | string | 否 | 单目录检索范围 |
 | `folders` | string[] | 否 | 多目录检索范围，最多 20 个 |
@@ -210,7 +210,7 @@ curl -N http://127.0.0.1:8010/api/chat \
 
 ### 4.3 超时与错误
 
-- 模型流式空闲超过 `INDOCQA_LLM_STREAM_IDLE_TIMEOUT`（默认 30s）会中止并尝试备用模型；已有输出后则返回 `error 42901`。
+- 模型流式空闲超过 `INDOCQA_LLM_STREAM_IDLE_TIMEOUT`（默认 30s）会中止并尝试下一个候选模型；已有输出后则返回 `error 42901`。
 - 检索整体超过 `INDOCQA_RETRIEVAL_TIMEOUT`（默认 45s）返回 `error 42901`。
 - 前端另有 45s 无数据看门狗，会中断连接并提示重试。
 

@@ -1,0 +1,8 @@
+{
+  "id": "industrial-compressor",
+  "version": "1.0.0",
+  "domain": "industrial",
+  "languages": ["zh"],
+  "engine_range": ">=0.1,<1.0",
+  "description": "工业空压机领域示例包（P3 骨架，P4 迁移完整资产）"
+}

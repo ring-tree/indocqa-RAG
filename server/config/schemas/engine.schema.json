@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "engine_version": {
+      "default": "0.1.0",
+      "title": "Engine Version",
+      "type": "string"
+    },
+    "pipeline_version": {
+      "default": "1",
+      "title": "Pipeline Version",
+      "type": "string"
+    },
+    "parser_version": {
+      "default": "1",
+      "title": "Parser Version",
+      "type": "string"
+    },
+    "chunker_version": {
+      "default": "1",
+      "title": "Chunker Version",
+      "type": "string"
+    },
+    "index_schema_version": {
+      "default": "1",
+      "title": "Index Schema Version",
+      "type": "string"
+    },
+    "retrieval_preset": {
+      "default": "balanced@1",
+      "title": "Retrieval Preset",
+      "type": "string"
+    },
+    "context_template_id": {
+      "default": "kb-answer",
+      "title": "Context Template Id",
+      "type": "string"
+    },
+    "context_template_version": {
+      "default": "1",
+      "title": "Context Template Version",
+      "type": "string"
+    }
+  },
+  "title": "EngineDefaults",
+  "type": "object"
+}

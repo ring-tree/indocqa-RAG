@@ -1,0 +1,11 @@
+{
+  "keywords": {
+    "term": ["空压机", "MTBF"],
+    "fault": ["E-05", "故障代码"],
+    "param": ["额定压力", "排气量"],
+    "procedure": ["保养", "更换"]
+  },
+  "connectors": [],
+  "reference_code_pattern": "[A-Za-z]{1,4}[-_]?\\d{1,4}",
+  "exceptions": []
+}

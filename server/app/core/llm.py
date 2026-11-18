@@ -1,4 +1,4 @@
-"""模型网关：OpenAI 兼容接口，主备供应商自动切换（SSE 流式透传）。
+"""模型网关：OpenAI 兼容接口，主供应商 + 扩展供应商按顺序自动切换（SSE 流式透传）。
 
 生成参数（temperature / max_tokens）在网关层按用途固化，公开方法不接受数值覆盖；
 仅对不支持可选参数的模型做显式降级重试，实际发送参数通过 last_request 回传。
@@ -18,7 +18,7 @@ _PLACEHOLDER_PREFIXES = ("sk-your", "your-", "replace", "changeme", "change-me",
 
 
 def _usable_key(key: str) -> bool:
-    """过滤 .env.example 复制后未替换的占位 Key，避免把备用模型当成可用。"""
+    """过滤 .env.example 复制后未替换的占位 Key，避免把占位配置当成可用模型。"""
     value = (key or "").strip().lower()
     return len(value) >= 12 and not value.startswith(_PLACEHOLDER_PREFIXES)
 
@@ -49,12 +49,6 @@ class LLMGateway:
             )
 
         add_provider("primary", settings.llm_base_url, settings.llm_api_key, settings.llm_model)
-        add_provider(
-            "backup",
-            settings.llm_backup_base_url,
-            settings.llm_backup_api_key,
-            settings.llm_backup_model,
-        )
         for index, item in enumerate(getattr(settings, "llm_profiles", []) or [], start=1):
             add_provider(
                 str(item.get("id") or f"profile{index}"),
@@ -119,7 +113,7 @@ class LLMGateway:
         if include_temperature:
             body["temperature"] = temperature
         if provider["primary"] and self.disable_thinking:
-            # 思考型模型关闭思考，降低首 token 延迟；备用供应商不注入该参数
+            # 思考型模型关闭思考，降低首 token 延迟；扩展供应商不注入该参数
             body["enable_thinking"] = False
         if json_mode and include_response_format:
             body["response_format"] = {"type": "json_object"}
@@ -248,7 +242,7 @@ class LLMGateway:
                         raise UpstreamError("模型流式响应超时或中断", detail=str(e)) from e
                     errors.append(f"{provider['base']}: {type(e).__name__} {e}")
                     break
-        raise UpstreamError("模型网关不可用（主备均失败）", detail="; ".join(errors))
+        raise UpstreamError("模型网关不可用（所有候选模型均失败）", detail="; ".join(errors))
 
     def _mark_used(self, provider: dict) -> None:
         self.last_profile = provider["id"]

@@ -17,9 +17,6 @@ _DISABLED_LLM = {
     "INDOCQA_LLM_BASE_URL": "http://disabled.invalid/v1",
     "INDOCQA_LLM_API_KEY": "x",
     "INDOCQA_LLM_MODEL": "disabled",
-    "INDOCQA_LLM_BACKUP_BASE_URL": "http://disabled.invalid/v1",
-    "INDOCQA_LLM_BACKUP_API_KEY": "x",
-    "INDOCQA_LLM_BACKUP_MODEL": "disabled",
 }
 
 

@@ -102,9 +102,8 @@ bash scripts/start.sh --install-only
 | `INDOCQA_LLM_BASE_URL` | — | OpenAI 兼容接口地址 |
 | `INDOCQA_LLM_API_KEY` | — | 主供应商密钥 |
 | `INDOCQA_LLM_MODEL` | — | 主模型名 |
-| `INDOCQA_LLM_BACKUP_*` | — | 备用供应商，主供应商失败时自动切换 |
-| `INDOCQA_LLM_PROFILE_<N>_*` | — | 任意多套扩展模型，前端下拉展示 |
-| `INDOCQA_LLM_STREAM_IDLE_TIMEOUT` | 30 | 流式空闲超时（秒），超时切换备用模型 |
+| `INDOCQA_LLM_PROFILE_<N>_*` | — | 扩展供应商；主供应商失败后按顺序切换，前端下拉展示 |
+| `INDOCQA_LLM_STREAM_IDLE_TIMEOUT` | 30 | 流式空闲超时（秒），超时切换下一个候选模型 |
 | `INDOCQA_RETRIEVAL_TIMEOUT` | 45 | 检索整体超时（秒） |
 | `INDOCQA_EMBED_BACKEND` | auto | `auto` / `local` / `ollama` / `minilm` |
 | `INDOCQA_EMBED_OLLAMA_MODEL` | bge-m3 | Ollama 嵌入模型 |
@@ -171,8 +170,8 @@ Web 端也可在“文档管理”页上传文档，单个文件 ≤ 20 MB。
 | `40902 向量库与嵌入后端不一致` | 切换了 `INDOCQA_EMBED_BACKEND` 或模型 | 删除 `server/data/chroma/` 或 `--rebuild` 重建 |
 | 知识库问答返回“资料未覆盖” | 未入库、目录范围过滤、弱命中闸门 | 检查 `/api/health` 的文档数；清空检索范围；确认文档已入库 |
 | 直接对话不可用 | 未配置 LLM | 填写 `INDOCQA_LLM_*` 并重启后端 |
-| 回答长时间无输出 | 上游模型慢/限流 | 前端 45s 会提示；后端 30s 空闲超时自动切换备用模型；换更快 profile |
-| `42901` 频繁 | 主备模型均限流或检索超时 | 增加备用 profile；调低 `INDOCQA_RETRIEVAL_TIMEOUT` 或错峰 |
+| 回答长时间无输出 | 上游模型慢/限流 | 前端 45s 会提示；后端 30s 空闲超时自动切换下一个候选模型；换更快 profile |
+| `42901` 频繁 | 所有候选模型均限流或检索超时 | 增加扩展 profile；调低 `INDOCQA_RETRIEVAL_TIMEOUT` 或错峰 |
 | 上传报 40003 | 文件格式不支持 | 仅支持 PDF / MD / TXT |
 | 上传报 40002 | 文件超过 20 MB | 拆分或压缩文档 |
 | Ollama 嵌入超时 | Ollama 未启动或模型未拉取 | `ollama serve`、`ollama pull bge-m3`；或切换 `INDOCQA_EMBED_BACKEND=local` |

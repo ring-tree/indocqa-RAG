@@ -185,9 +185,6 @@ def main() -> None:
         "INDOCQA_LLM_BASE_URL",
         "INDOCQA_LLM_API_KEY",
         "INDOCQA_LLM_MODEL",
-        "INDOCQA_LLM_BACKUP_BASE_URL",
-        "INDOCQA_LLM_BACKUP_API_KEY",
-        "INDOCQA_LLM_BACKUP_MODEL",
     ):
         os.environ[key] = ""
     from app.core.config import get_settings

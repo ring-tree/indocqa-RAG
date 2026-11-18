@@ -24,6 +24,8 @@ class Settings(BaseSettings):
         "terms_file",
         "embed_cache_dir",
         "session_db",
+        "engine_data_dir",
+        "packs_dir",
         mode="after",
     )
     @classmethod
@@ -35,13 +37,10 @@ class Settings(BaseSettings):
     app_name: str = "IndocQA"
     version: str = "0.1.0"
 
-    # 模型网关：主供应商 + 备用供应商，主供应商限流或故障时切换
+    # 模型网关：主供应商 + 任意多套扩展供应商；主供应商失败时按顺序切换扩展项
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = ""
-    llm_backup_base_url: str = ""
-    llm_backup_api_key: str = ""
-    llm_backup_model: str = ""
     # 模型流式空闲超时：连接建立后长时间没有新数据则中止，避免请求无限挂起
     llm_stream_idle_timeout: float = Field(default=30.0, ge=3.0, le=120.0)
     # 检索阶段整体超时（含嵌入服务），超时后返回可重试错误而不是继续阻塞
@@ -71,6 +70,10 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "bge-m3"
 
     chroma_dir: str = "data/chroma"
+    # P2 新引擎数据目录：与旧链路并行，互不共享索引
+    engine_data_dir: str = "data/engine"
+    engine_embed_dimension: int = Field(default=1024, ge=1)
+    packs_dir: str = "packs"
     corpus_dir: str = "../data/corpus"
     upload_dir: str = "data/uploads"
     # 会话附件：与知识库上传目录分离，按 session 隔离存储

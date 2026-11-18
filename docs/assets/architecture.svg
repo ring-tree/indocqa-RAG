@@ -88,7 +88,7 @@
   <!-- 生成列 -->
   <rect class="box-soft" x="836" y="392" width="376" height="52" rx="10"/>
   <text class="box-title" x="852" y="414">⑦ 多模型网关</text>
-  <text class="box-sub" x="852" y="433">主模型 → 备用 → 扩展 profile · 空闲超时切换</text>
+  <text class="box-sub" x="852" y="433">主模型 → 扩展 profile · 空闲超时切换</text>
 
   <rect class="box-soft" x="836" y="458" width="376" height="52" rx="10"/>
   <text class="box-title" x="852" y="480">⑧ 约束生成</text>

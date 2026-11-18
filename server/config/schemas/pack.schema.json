@@ -1,0 +1,345 @@
+{
+  "$defs": {
+    "AuthorityConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "document_types": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Document Types",
+          "type": "object"
+        }
+      },
+      "title": "AuthorityConfig",
+      "type": "object"
+    },
+    "ClassificationConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "filename_rules": {
+          "items": {
+            "$ref": "#/$defs/FilenameRule"
+          },
+          "title": "Filename Rules",
+          "type": "array"
+        },
+        "document_types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Document Types",
+          "type": "array"
+        },
+        "title_cleanup": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Title Cleanup",
+          "type": "array"
+        }
+      },
+      "title": "ClassificationConfig",
+      "type": "object"
+    },
+    "DataFactsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "units": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "array"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        }
+      },
+      "title": "DataFactsConfig",
+      "type": "object"
+    },
+    "EvalConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset"
+        }
+      },
+      "title": "EvalConfig",
+      "type": "object"
+    },
+    "FilenameRule": {
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Pattern",
+          "type": "string"
+        },
+        "folder": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Folder",
+          "type": "string"
+        },
+        "priority": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Priority",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pattern",
+        "folder"
+      ],
+      "title": "FilenameRule",
+      "type": "object"
+    },
+    "FolderConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Template",
+          "type": "array"
+        },
+        "default": {
+          "type": "string",
+          "default": "未分类",
+          "title": "Default"
+        },
+        "migration": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Migration",
+          "type": "object"
+        }
+      },
+      "title": "FolderConfig",
+      "type": "object"
+    },
+    "IntentConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "keywords": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Keywords",
+          "type": "object"
+        },
+        "connectors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Connectors",
+          "type": "array"
+        },
+        "reference_code_pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Code Pattern"
+        },
+        "exceptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exceptions",
+          "type": "array"
+        }
+      },
+      "title": "IntentConfig",
+      "type": "object"
+    },
+    "PackManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9-]{1,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        },
+        "domain": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Domain",
+          "type": "string"
+        },
+        "languages": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Languages",
+          "type": "array"
+        },
+        "engine_range": {
+          "default": ">=0.1,<1.0",
+          "title": "Engine Range",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "domain"
+      ],
+      "title": "PackManifest",
+      "type": "object"
+    },
+    "PackUIConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "subtitle": {
+          "default": "",
+          "title": "Subtitle",
+          "type": "string"
+        },
+        "examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Examples",
+          "type": "array"
+        },
+        "folder_example": {
+          "default": "",
+          "title": "Folder Example",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        }
+      },
+      "title": "PackUIConfig",
+      "type": "object"
+    },
+    "PersonaConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Roles",
+          "type": "array"
+        }
+      },
+      "title": "PersonaConfig",
+      "type": "object"
+    },
+    "PromptStyleConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "tone": {
+          "default": "",
+          "title": "Tone",
+          "type": "string"
+        },
+        "length": {
+          "default": "",
+          "title": "Length",
+          "type": "string"
+        },
+        "structure": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Structure",
+          "type": "array"
+        },
+        "examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Examples",
+          "type": "array"
+        }
+      },
+      "title": "PromptStyleConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "manifest": {
+      "$ref": "#/$defs/PackManifest"
+    },
+    "folders": {
+      "$ref": "#/$defs/FolderConfig"
+    },
+    "classification": {
+      "$ref": "#/$defs/ClassificationConfig"
+    },
+    "intent": {
+      "$ref": "#/$defs/IntentConfig"
+    },
+    "data_facts": {
+      "$ref": "#/$defs/DataFactsConfig"
+    },
+    "authority": {
+      "$ref": "#/$defs/AuthorityConfig"
+    },
+    "persona": {
+      "$ref": "#/$defs/PersonaConfig"
+    },
+    "prompts": {
+      "$ref": "#/$defs/PromptStyleConfig"
+    },
+    "ui": {
+      "$ref": "#/$defs/PackUIConfig"
+    },
+    "evaluation": {
+      "$ref": "#/$defs/EvalConfig"
+    }
+  },
+  "required": [
+    "manifest"
+  ],
+  "title": "DomainPack",
+  "type": "object"
+}

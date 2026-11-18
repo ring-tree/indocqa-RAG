@@ -1,0 +1,5 @@
+{
+  "template": ["设备手册", "行业标准"],
+  "default": "未分类",
+  "migration": {}
+}

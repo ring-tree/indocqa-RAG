@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "QuotaConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "max_documents": {
+          "default": 10000,
+          "minimum": 1,
+          "title": "Max Documents",
+          "type": "integer"
+        },
+        "max_chunks": {
+          "default": 1000000,
+          "minimum": 1,
+          "title": "Max Chunks",
+          "type": "integer"
+        },
+        "max_bytes": {
+          "default": 10737418240,
+          "minimum": 1024,
+          "title": "Max Bytes",
+          "type": "integer"
+        }
+      },
+      "title": "QuotaConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kb_id": {
+      "default": "kb_default",
+      "pattern": "^kb_[a-z0-9_-]+$",
+      "title": "Kb Id",
+      "type": "string"
+    },
+    "name": {
+      "default": "默认知识库",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "language_profile": {
+      "default": "zh-CN",
+      "title": "Language Profile",
+      "type": "string"
+    },
+    "domain_pack_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Domain Pack Id"
+    },
+    "embedding_model": {
+      "default": "",
+      "title": "Embedding Model",
+      "type": "string"
+    },
+    "preset": {
+      "default": "balanced@1",
+      "pattern": "^(precision|balanced|recall)(@1)?$",
+      "title": "Preset",
+      "type": "string"
+    },
+    "allowed_folders": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Folders",
+      "type": "array"
+    },
+    "quota": {
+      "$ref": "#/$defs/QuotaConfig"
+    }
+  },
+  "title": "KBConfig",
+  "type": "object"
+}

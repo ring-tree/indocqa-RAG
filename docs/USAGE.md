@@ -63,7 +63,7 @@
 输入框上方的模型下拉展示 `server/.env` 中配置的全部 profile：
 
 - `primary`：主模型
-- `profile2`、`profile3`…：备用/扩展模型
+- `profile2`、`profile3`…：扩展模型
 - 选择后仅影响后续回答；回答底部会标注实际使用模型
 
 ### 2.6 停止、重试与复制

@@ -9,9 +9,9 @@
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white">
   <img alt="Chroma" src="https://img.shields.io/badge/VectorDB-Chroma-FF6B6B">
-  <img alt="Ollama" src="https://img.shields.io/badge/Embedding-Ollama%20bge--m3-000000">
+  <img alt="Embedding" src="https://img.shields.io/badge/Embedding-bge--m3%20%2B%20local%20fallback-000000">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
-  <img alt="Tests" src="https://img.shields.io/badge/Tests-159%20cases-blue">
+  <img alt="Tests" src="https://img.shields.io/badge/Tests-161%20cases-blue">
 </p>
 
 ![问答工作台](docs/assets/screenshots/chat.png)
@@ -76,9 +76,9 @@
   → 策略路由 + 查询改写（术语归一、多跳规划）
   → 混合检索（Chroma 向量 + BM25 → RRF）
   → 上下文组装（去重 → 噪声过滤 → 权重/预算 → 模板 → 溯源）
-  → LLMGateway（主模型 → 备用 → 扩展 profile）
+  → LLMGateway（主模型 → 扩展 profile）
   → 引用审计 + 安全过滤 + Markdown/JSON
-  → SSE 流式输出（trace / sources / context / token / done）
+  → SSE 事件流输出（回答生成后按块下发；trace / sources / context / token / done）
 ```
 
 > 架构图源文件：[`docs/assets/architecture.svg`](docs/assets/architecture.svg)
@@ -136,7 +136,7 @@
 
 `server/app/core/llm.py`：
 
-- 主供应商失败自动切换备用，再按顺序尝试任意多套 `INDOCQA_LLM_PROFILE_<N>_*`；
+- 主供应商失败后按顺序尝试任意多套 `INDOCQA_LLM_PROFILE_<N>_*`；
 - 流式读取设置空闲超时（默认 30s），避免上游“连接建立但不下发 token”导致悬挂；
 - 检索整体超时（默认 45s）返回可重试错误；
 - 前端 45s 无数据看门狗，超时给出明确提示而非无限等待。
@@ -168,7 +168,7 @@
 | 端到端问答 | 10 题成功率 **100%**；首 Token P50 **17.5s** / P95 **61.8s**；引用覆盖 70% |
 | 并发 | 见下方并发测试结果 |
 
-> 端到端时延包含外部模型供应商的排队与网络时间；本次测试时段上游波动明显，网关自动切换了备用模型。系统侧的超时、降级与切换行为已记录在[性能测试报告](docs/performance/性能测试报告.md)中。
+> 端到端时延包含外部模型供应商的排队与网络时间；本次测试时段上游波动明显，网关自动切换了候选模型。系统侧的超时、降级与切换行为已记录在[性能测试报告](docs/performance/性能测试报告.md)中。
 
 ### 并发处理
 
@@ -331,7 +331,7 @@ A：不必须。`INDOCQA_EMBED_BACKEND=local` 使用仓库内权重，完全离�
 A：确认完成“确认入库”而非仅预检；检查检索范围；切换嵌入后端后需重建索引。
 
 **Q：回答很慢或超时？**
-A：首 Token 受上游模型影响；系统有 30s 流式空闲超时、45s 检索超时与前端看门狗。可切换更快的模型 profile，或配置备用供应商。
+A：首 Token 受上游模型影响；系统有 30s 流式空闲超时、45s 检索超时与前端看门狗。可切换更快的模型 profile，或配置扩展供应商。
 
 **Q：数据存在哪里？**
 A：`server/data/chroma/`（向量与 BM25）、`server/data/db/sessions.db`（会话）、`server/data/uploads/`（原文件）。

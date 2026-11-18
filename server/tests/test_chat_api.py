@@ -54,6 +54,36 @@ def client(tmp_path, monkeypatch):
     store._client.cache_clear()
 
 
+def test_sse_event_order_golden(client):
+    """SSE golden：顺序、终止事件唯一与必填字段。"""
+    r = client.post(
+        "/api/chat",
+        json={"message": "储气罐的作用是什么？", "mode": "kb"},
+    )
+    assert r.status_code == 200
+    events = _parse_sse(r.text)
+    kinds = [e["event"] for e in events]
+    assert kinds, "至少应有一个 SSE 事件"
+    assert kinds[0] in {"trace", "context", "sources"}
+    assert kinds[-1] in {"done", "error"}
+    assert kinds.count("done") <= 1
+    assert kinds.count("error") <= 1
+    if "done" in kinds:
+        assert kinds[-1] == "done"
+        done = events[-1]["data"]
+        for field in ("confidence", "sessionId", "messageId", "boundary", "request_id"):
+            assert field in done
+    first_token = kinds.index("token") if "token" in kinds else len(kinds)
+    for index, kind in enumerate(kinds):
+        if kind == "sources":
+            assert index < first_token
+    for event in events:
+        if event["event"] == "trace":
+            assert event["data"].get("stage")
+        if event["event"] == "sources":
+            assert isinstance(event["data"].get("items"), list)
+
+
 def test_kb_chat_stream_with_sources_and_done(client):
     r = client.post(
         "/api/chat",
@@ -81,13 +111,10 @@ def test_kb_table_question_hits_serialized_table(client):
 
 
 def test_direct_without_gateway_returns_42901(client, monkeypatch):
-    # 环境变量覆盖 .env 中的网关配置（含备用供应商），模拟完全未配置场景
-    for var in ("INDOCQA_LLM_BASE_URL", "INDOCQA_LLM_BACKUP_BASE_URL"):
-        monkeypatch.setenv(var, "http://disabled.invalid/v1")
-    for var in ("INDOCQA_LLM_API_KEY", "INDOCQA_LLM_BACKUP_API_KEY"):
-        monkeypatch.setenv(var, "x")
-    for var in ("INDOCQA_LLM_MODEL", "INDOCQA_LLM_BACKUP_MODEL"):
-        monkeypatch.setenv(var, "disabled")
+    # 环境变量覆盖 .env 中的网关配置（含所有候选模型），模拟完全未配置场景
+    monkeypatch.setenv("INDOCQA_LLM_BASE_URL", "http://disabled.invalid/v1")
+    monkeypatch.setenv("INDOCQA_LLM_API_KEY", "x")
+    monkeypatch.setenv("INDOCQA_LLM_MODEL", "disabled")
     get_settings.cache_clear()
     try:
         r = client.post("/api/chat", json={"message": "你好", "mode": "direct"})
