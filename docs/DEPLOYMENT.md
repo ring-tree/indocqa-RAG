@@ -212,3 +212,77 @@ uv run --project server --with matplotlib --with psutil python eval/perf_benchma
 - `docs/performance/charts/*.png|svg`
 
 报告包含检索质量、首 Token/端到端时延、入库吞吐、并发 QPS 与资源占用，可直接用于答辩展示。
+
+## 11. 新引擎（/api/v1）部署与 CLI
+
+旧 `/api` 链路保持不变；新引擎以并行入口 `/api/v1` 提供控制面、Build、Pack 与检索能力。两者共享同一进程，但使用独立数据目录。
+
+### 11.1 目录与配置
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `INDOCQA_ENGINE_DATA_DIR` | `data/engine` | 控制面 SQLite、Chroma、BM25、对象存储根目录 |
+| `INDOCQA_PACKS_DIR` | `packs` | Domain Pack 根目录 |
+| `INDOCQA_ENGINE_EMBED_DIMENSION` | `1024` | 新引擎嵌入维度，必须与 Ollama 模型一致 |
+| `INDOCQA_LEGACY_PACK` | 空 | 旧链路启用某个 Pack，格式 `<id>@<version>` |
+| `INDOCQA_FOLDER_MIGRATION_ENABLED` | `false` | 启动时是否按 Pack 迁移存量目录 |
+
+> 单进程约束同样适用于新引擎：控制面 SQLite、Chroma、BM25 侧车与对象存储均为进程内资源，**只允许 1 个 uvicorn worker**。多实例部署必须改为外部向量库/数据库，或按 KB 分片部署。
+
+### 11.2 CLI 快速路径
+
+```bash
+cd server
+uv sync --extra dev
+
+# 1) 初始化项目（在当前目录生成 indocqa.json 与控制面）
+uv run python -m app.cli init --dir ./demo --name "示例知识库" \
+  --pack example-minimal@1.0.0
+
+# 2) 放入语料后校验配置
+uv run python -m app.cli validate --dir ./demo
+
+# 3) 构建并激活 Build
+uv run python -m app.cli build --dir ./demo
+
+# 4) 单次检索
+uv run python -m app.cli query --dir ./demo "示例问题"
+```
+
+CLI 使用 Ollama 嵌入（`bge-m3`），需先执行 `ollama serve` 与 `ollama pull bge-m3`。`build` 支持 PDF / Markdown / TXT，按小节切块并写入控制面、向量与关键词索引；`query` 输出命中块、来源文档、章节与页码。
+
+### 11.3 API 路径
+
+```bash
+# 健康与版本
+curl http://127.0.0.1:8010/api/v1/health
+
+# 安装 Pack、创建 KB、构建、激活、回滚
+curl -X POST http://127.0.0.1:8010/api/v1/packs/install \
+  -H 'Content-Type: application/json' \
+  -d '{"packId":"customer-service-faq","version":"1.0.0"}'
+```
+
+完整端点与错误码见 `docs/API.md` 第 11 节。
+
+### 11.4 部署后自检
+
+```bash
+curl http://127.0.0.1:8010/api/health
+curl http://127.0.0.1:8010/api/v1/health
+curl http://127.0.0.1:8010/api/v1/ui-profile
+curl http://127.0.0.1:8010/api/v1/packs
+```
+
+### 11.5 CI 门禁
+
+`.github/workflows/ci.yml` 在每次 push / PR 执行：
+
+- `ruff check`；
+- 契约快照：`test_api_v1.py`、`test_chat_api.py`、`test_config_model.py`；
+- 领域词与 Pack 资产：`test_domain_leakage.py`、`test_packs.py`；
+- 全量 `pytest`；
+- CLI `--help` 冒烟；
+- 前端 `npm run lint` / `npm run build`。
+
+PR 必须全绿方可合并。

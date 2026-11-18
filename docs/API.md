@@ -80,6 +80,15 @@ FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `400
 | 40902 | 409 | 向量库与当前嵌入后端不一致 | 重建索引（见部署文档） |
 | 40903 | 409 | 知识库正被另一个进程写入 | 等待写入结束后重试 |
 | 40904 | 409 | 未配置输出层模型 | 配置 `INDOCQA_LLM_*` 后重启 |
+| 40007 | 400 | 配置校验失败 | 检查 `/api/v1` 配置字段与 Schema |
+| 40008 | 400 | 字段被引擎锁定，不允许覆盖 | 移除 `engine.*` 覆盖 |
+| 40405 | 404 | Build 不存在 | 刷新 Build 列表 |
+| 40905 | 409 | Build 状态冲突（如归档 Build 不可执行当前操作） | 查看 Build 状态后重试 |
+| 40906 | 409 | 索引命名空间与引擎/维度不兼容 | 重建 Build |
+| 50004 | 500 | 索引适配器异常 | 检查 Chroma / BM25 |
+| 50005 | 500 | Build 失败 | 查看 Build 状态与日志 |
+| 50006 | 500 | 对象存储异常 | 检查对象存储目录与权限 |
+| 50007 | 500 | 嵌入适配器异常 | 检查 Ollama / 嵌入服务 |
 | 42901 | 502 | 上游模型限流/不可用/流式超时；检索超时也复用该码 | 稍后重试，或切换模型 profile |
 | 50001 | 500 | 检索服务异常（嵌入或向量库） | 检查 Ollama / 向量库状态 |
 | 50002 | 500 | 未归类的服务端错误 | 查看后端日志 |
@@ -669,3 +678,73 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 ```
 
 拼接所有 `token.delta` 后 `json.loads` 即可得到完整结构化答案。
+
+---
+
+## 11. 新引擎 `/api/v1`
+
+新引擎与旧 `/api` 并行：旧链路行为、SSE 事件与错误码保持不变；`/api/v1` 提供控制面、Domain Pack、Build 与检索能力。所有 `/api/v1` 响应带 `X-API-Version: 1`。
+
+### 11.1 错误包
+
+```json
+{
+  "error": {
+    "code": 40905,
+    "name": "build_state_conflict",
+    "message": "Build 状态为 archived，不允许回滚",
+    "detail": null,
+    "retryable": false,
+    "requestId": "a1b2c3d4e5f6"
+  }
+}
+```
+
+错误码表见第 2 节；`name` 与 `retryable` 为稳定字段。
+
+### 11.2 端点
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/v1/health` | 引擎健康、KB 文档/块数 |
+| GET | `/api/v1/models` | 输出层模型列表 |
+| GET | `/api/v1/ui-profile` | 当前进程 Domain Pack 的副标题/示例/目录示例 |
+| GET | `/api/v1/embedding-models` | 嵌入模型注册表 |
+| GET | `/api/v1/config/schemas` | 五份配置 Schema 列表 |
+| GET | `/api/v1/config/schemas/{scope}` | 单份 Schema（engine/kb/answer/ui/pack） |
+| GET | `/api/v1/kbs` | 知识库列表 |
+| POST | `/api/v1/kbs` | 创建 KB（可带 `domainPackId/domainPackVersion`） |
+| GET | `/api/v1/kbs/{kb}` | KB 详情（含 active/previous Build 与 Pack 绑定） |
+| GET | `/api/v1/kbs/{kb}/config` | 配置、生效值、来源、版本 |
+| PATCH | `/api/v1/kbs/{kb}/config` | 保存配置并返回影响分析 |
+| POST | `/api/v1/kbs/{kb}/config/validate` | 仅校验配置 |
+| GET | `/api/v1/packs` | 已安装 / 已发现 Pack |
+| POST | `/api/v1/packs/validate` | 校验 Pack |
+| POST | `/api/v1/packs/install` | 安装 Pack（同 id+version 内容不可变） |
+| POST | `/api/v1/packs/uninstall` | 卸载 Pack（被绑定 KB 拒绝） |
+| GET | `/api/v1/packs/diff` | 字段级 diff 与影响分析 |
+| POST | `/api/v1/kbs/{kb}/pack` | 绑定 Pack（一 KB 一主 Pack） |
+| GET | `/api/v1/kbs/{kb}/pack` | 查询绑定 |
+| DELETE | `/api/v1/kbs/{kb}/pack` | 解绑 |
+| POST | `/api/v1/kbs/{kb}/builds` | 创建 Build（202，返回 `buildId/statusUrl`） |
+| GET | `/api/v1/builds/{build}` | Build 状态、健康、stats |
+| POST | `/api/v1/builds/{build}/activate` | 激活；归档 Build 也可激活（回滚） |
+| POST | `/api/v1/kbs/{kb}/rollback` | 回滚到指定 `buildId` |
+| POST | `/api/v1/builds/{build}/reconcile` | 控制面/向量/关键词对账 |
+| POST | `/api/v1/kbs/{kb}/documents` | 注册文档（内容哈希幂等） |
+| POST | `/api/v1/builds/{build}/chunks` | 写入分块并索引 |
+| POST | `/api/v1/search` | Build/KB 级检索 |
+
+### 11.3 SSE
+
+新引擎暂不新增 SSE 事件；问答仍走 `POST /api/chat`，事件顺序与字段见第 4 节：`trace*` → `context?` → `sources?` → `token*` → `done`，异常以 `error` 收尾。
+
+### 11.4 CLI
+
+`init / validate / build / query` 四个命令的用法与示例见 `docs/DEPLOYMENT.md` 第 11.2 节。
+
+### 11.5 边界
+
+- 一个进程只装配一套引擎适配器，单 worker 约束不变；
+- `/api/v1` 的 Build 激活尚未驱动旧 `/api/chat`（ISSUE-20261118-06）；
+- `ui-profile` 为进程级（ISSUE-20261118-05）。

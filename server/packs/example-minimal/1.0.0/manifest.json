@@ -1,0 +1,8 @@
+{
+  "id": "example-minimal",
+  "version": "1.0.0",
+  "domain": "demo",
+  "languages": ["zh"],
+  "engine_range": ">=0.1,<1.0",
+  "description": "最小示例 Pack：只包含 manifest、术语、目录、分类、意图与 UI"
+}

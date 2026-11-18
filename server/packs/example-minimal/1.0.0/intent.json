@@ -1,0 +1,11 @@
+{
+  "keywords": {
+    "term": ["是什么", "什么意思"],
+    "param": ["多少", "多久"],
+    "procedure": ["怎么", "如何"],
+    "fault": ["失败", "异常"]
+  },
+  "connectors": ["和", "与"],
+  "reference_code_pattern": null,
+  "exceptions": []
+}

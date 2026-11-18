@@ -1,0 +1,7 @@
+{
+  "filename_rules": [
+    {"pattern": "示例|sample", "folder": "文档", "priority": 10}
+  ],
+  "document_types": ["说明", "指南"],
+  "title_cleanup": ["说明", "指南"]
+}

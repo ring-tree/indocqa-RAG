@@ -193,3 +193,13 @@ def test_builtin_customer_service_pack_loads():
     assert "7天无理由" in loaded.pack.terms.clusters
     assert loaded.pack.ui.subtitle
     assert loaded.pack.evaluation.dataset == "eval/dataset-support.jsonl"
+
+
+def test_builtin_example_pack_loads():
+    from app.core.config import SERVER_ROOT
+
+    loader = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0")
+    loaded = loader.load("example-minimal", "1.0.0")
+    assert loaded.pack.manifest.domain == "demo"
+    assert "示例" in loaded.pack.terms.clusters
+    assert loaded.pack.ui.folder_example == "文档"

@@ -1,0 +1,5 @@
+{
+  "template": ["文档", "评测夹具"],
+  "default": "未分类",
+  "migration": {}
+}
