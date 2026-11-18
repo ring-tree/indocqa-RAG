@@ -1,0 +1,8 @@
+{
+  "id": "customer-service-faq",
+  "version": "1.0.0",
+  "domain": "customer-service",
+  "languages": ["zh"],
+  "engine_range": ">=0.1,<1.0",
+  "description": "客服 FAQ 领域包：售后政策、物流配送、账户会员与保修服务；语料与评测均为合成数据"
+}

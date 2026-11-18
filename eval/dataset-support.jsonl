@@ -1,0 +1,16 @@
+{"id": "term-01", "type": "term", "question": "7天无理由退货是什么意思？需要满足哪些条件？", "expected_sources": ["售后政策_退换货与退款"], "answer_points": ["7天", "商品完好"]}
+{"id": "term-02", "type": "term", "question": "运费险是什么？赔付上限是多少？", "expected_sources": ["售后政策_退换货与退款"], "answer_points": ["运费险", "12元"]}
+{"id": "term-03", "type": "term", "question": "会员等级中金卡和银卡有什么区别？", "expected_sources": ["账户会员_注册登录与权益"], "answer_points": ["成长值", "5000"]}
+{"id": "param-01", "type": "param", "question": "退款一般多久到账？", "expected_sources": ["售后政策_退换货与退款"], "answer_points": ["1-3个工作日", "3-7个工作日"]}
+{"id": "param-02", "type": "param", "question": "现货商品付款后多久发货？", "expected_sources": ["物流配送_发货与签收"], "answer_points": ["48小时"]}
+{"id": "param-03", "type": "param", "question": "主机、配件和耗材的保修期分别是多久？", "expected_sources": ["保修服务_质保与维修"], "answer_points": ["12个月", "6个月", "3个月"]}
+{"id": "param-04", "type": "param", "question": "积分有效期是多久？多少积分可以抵扣1元？", "expected_sources": ["账户会员_注册登录与权益"], "answer_points": ["12个月", "100积分"]}
+{"id": "proc-01", "type": "procedure", "question": "退货的具体流程是什么？", "expected_sources": ["售后政策_退换货与退款"], "answer_points": ["申请", "审核", "寄回", "退款"]}
+{"id": "proc-02", "type": "procedure", "question": "如何修改绑定的手机号？", "expected_sources": ["账户会员_注册登录与权益"], "answer_points": ["安全中心", "原手机号"]}
+{"id": "proc-03", "type": "procedure", "question": "商品在运输中损坏了怎么处理？", "expected_sources": ["物流配送_发货与签收"], "answer_points": ["48小时", "补发"]}
+{"id": "proc-04", "type": "procedure", "question": "申请保修维修需要哪些步骤和凭证？", "expected_sources": ["保修服务_质保与维修"], "answer_points": ["订单号", "审核", "3-7个工作日"]}
+{"id": "fault-01", "type": "fault", "question": "登录时提示密码错误，账户被锁定了怎么办？", "expected_sources": ["账户会员_注册登录与权益"], "answer_points": ["30分钟", "验证码"]}
+{"id": "fault-02", "type": "fault", "question": "快递显示已签收但没收到货怎么办？", "expected_sources": ["物流配送_发货与签收"], "answer_points": ["联系客服", "48小时"]}
+{"id": "fault-03", "type": "fault", "question": "退款失败收不到钱是什么原因？", "expected_sources": ["售后政策_退换货与退款"], "answer_points": ["原支付渠道", "1-3个工作日"]}
+{"id": "multi-01", "type": "multihop", "question": "退货退款后，优惠券会退回吗？积分会扣回吗？", "expected_sources": ["售后政策_退换货与退款", "账户会员_注册登录与权益"], "answer_points": ["优惠券", "积分"]}
+{"id": "multi-02", "type": "multihop", "question": "申请保修维修需要哪些凭证？电子发票在哪里下载？", "expected_sources": ["保修服务_质保与维修", "售后政策_退换货与退款"], "answer_points": ["订单号", "电子发票", "24小时"]}

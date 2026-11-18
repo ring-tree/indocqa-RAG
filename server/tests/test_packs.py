@@ -181,3 +181,15 @@ def test_builtin_industrial_pack_loads():
     loaded = loader.load("industrial-compressor", "1.0.0")
     assert loaded.pack.manifest.domain == "industrial"
     assert loaded.pack.manifest.languages == ["zh"]
+
+
+def test_builtin_customer_service_pack_loads():
+    from app.core.config import SERVER_ROOT
+
+    loader = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0")
+    loaded = loader.load("customer-service-faq", "1.0.0")
+    assert loaded.pack.manifest.domain == "customer-service"
+    assert loaded.pack.manifest.languages == ["zh"]
+    assert "7天无理由" in loaded.pack.terms.clusters
+    assert loaded.pack.ui.subtitle
+    assert loaded.pack.evaluation.dataset == "eval/dataset-support.jsonl"

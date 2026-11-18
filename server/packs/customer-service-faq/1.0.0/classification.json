@@ -1,0 +1,11 @@
+{
+  "filename_rules": [
+    {"pattern": "退货|退款|换货", "folder": "售后支持", "priority": 10},
+    {"pattern": "物流|配送|快递|签收", "folder": "物流配送", "priority": 20},
+    {"pattern": "账户|会员|优惠券|密码", "folder": "账户与会员", "priority": 30},
+    {"pattern": "保修|质保|维修", "folder": "保修服务", "priority": 40},
+    {"pattern": "fixture|评测", "folder": "评测夹具", "priority": 50}
+  ],
+  "document_types": ["政策", "条款", "指南", "说明", "手册", "FAQ"],
+  "title_cleanup": ["客服指南", "政策说明", "操作指引", "使用说明", "指南", "说明", "手册"]
+}

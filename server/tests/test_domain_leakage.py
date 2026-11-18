@@ -9,6 +9,7 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ENGINE_DIR = ROOT / "server" / "app"
 WEB_DIR = ROOT / "web" / "src"
+SUPPORT_PACK_DIR = ROOT / "server" / "packs" / "customer-service-faq"
 
 CHINESE_TERMS = (
     "空压机",
@@ -59,3 +60,9 @@ def test_engine_has_no_industrial_vocabulary():
 def test_web_has_no_industrial_vocabulary():
     hits = _scan(WEB_DIR)
     assert not hits, "前端目录出现工业领域词：\n" + "\n".join(hits)
+
+
+def test_customer_service_pack_has_no_industrial_vocabulary():
+    """第二领域 Pack 不得复用工业术语、目录或语料名称。"""
+    hits = _scan(SUPPORT_PACK_DIR)
+    assert not hits, "客服 Pack 出现工业领域词：\n" + "\n".join(hits)
