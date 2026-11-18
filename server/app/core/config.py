@@ -67,15 +67,21 @@ class Settings(BaseSettings):
     # 本地模型权重随项目分发：仓库根 models/ 目录（打包时连同复制，程序只引用项目内路径）
     embed_cache_dir: str = "../models"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_embed_model: str = "bge-m3"
+    embed_ollama_model: str = "bge-m3"
 
     chroma_dir: str = "data/chroma"
-    # P2 新引擎数据目录：与旧链路并行，互不共享索引
+    # 构建链路的数据目录：与问答链路并行，互不共享索引
     engine_data_dir: str = "data/engine"
     engine_embed_dimension: int = Field(default=1024, ge=1)
     packs_dir: str = "packs"
-    # 旧链路可选的 Domain Pack 覆盖，格式 <pack-id>@<version>；为空时保持硬编码默认
+    # 问答与知识运营链路可选的 Domain Pack 覆盖，格式 <pack-id>@<version>；为空时保持硬编码默认
     legacy_pack: str = ""
+    # 请求未显式传 kbId 时用于 Pack 作用域解析的知识库 ID
+    legacy_kb: str = "kb_default"
+    # 问答检索后端：auto=有 kbId 且该 KB 有 active Build 时走构建链路，否则走问答链路
+    answer_backend: str = "auto"
+    # /api/v1 静态 Bearer Token；为空表示仅本机/开发模式不鉴权
+    auth_token: str = ""
     # 启动时按 Pack 迁移存量目录；默认关闭，需显式开启
     folder_migration_enabled: bool = False
     corpus_dir: str = "../data/corpus"

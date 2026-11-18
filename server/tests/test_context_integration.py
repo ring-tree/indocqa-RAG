@@ -2,7 +2,6 @@
 
 import json
 import pathlib
-import shutil
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,9 +15,8 @@ FIXTURE = (
     pathlib.Path(__file__).resolve().parents[2]
     / "data"
     / "corpus"
-    / "fixture_术语混写_模拟维保手册.md"
+    / "fixture_术语混写_示例手册.md"
 )
-SEED = pathlib.Path(__file__).resolve().parents[2] / "data" / "terms" / "seed.json"
 
 
 def _parse_sse(text: str) -> list[dict]:
@@ -50,7 +48,6 @@ def _ask(client, message: str, session_id: str | None = None, response_format: s
 def client(tmp_path, monkeypatch):
     terms = tmp_path / "terms"
     terms.mkdir()
-    shutil.copy(SEED, terms / "seed.json")
     monkeypatch.setenv("INDOCQA_CHROMA_DIR", str(tmp_path / "chroma"))
     monkeypatch.setenv("INDOCQA_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("INDOCQA_SESSION_DB", str(tmp_path / "sessions.db"))
@@ -65,7 +62,7 @@ def client(tmp_path, monkeypatch):
 
 
 def test_context_event_and_manifest_persistence(client):
-    events = _ask(client, "LUB 更换的保养周期是多少小时？")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？")
     kinds = [event["event"] for event in events]
     assert "context" in kinds and "sources" in kinds and "done" in kinds
     context = next(event for event in events if event["event"] == "context")["data"]
@@ -89,13 +86,13 @@ def test_context_event_and_manifest_persistence(client):
 def test_context_mode_off_and_shadow(client, monkeypatch):
     monkeypatch.setenv("INDOCQA_CONTEXT_MODE", "off")
     get_settings.cache_clear()
-    events = _ask(client, "LUB 更换的保养周期是多少小时？")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？")
     assert "context" not in [event["event"] for event in events]
     assert any(event["event"] == "sources" and event["data"]["items"] for event in events)
 
     monkeypatch.setenv("INDOCQA_CONTEXT_MODE", "shadow")
     get_settings.cache_clear()
-    events = _ask(client, "LUB 更换的保养周期是多少小时？")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？")
     context = next(event for event in events if event["event"] == "context")["data"]
     assert context["shadow"] is True
     assert context["layers"]["evidence"] >= 1
@@ -103,17 +100,17 @@ def test_context_mode_off_and_shadow(client, monkeypatch):
 
 
 def test_persona_is_scoped_to_session(client):
-    first = _ask(client, "以后都用中文回答。LUB 更换的保养周期是多少小时？")
+    first = _ask(client, "以后都用中文回答。FLT 更换的保养周期是多少小时？")
     context_one = next(event for event in first if event["event"] == "context")["data"]
     assert context_one["layers"]["persona"] >= 1
 
-    second = _ask(client, "LUB 更换的保养周期是多少小时？")
+    second = _ask(client, "FLT 更换的保养周期是多少小时？")
     context_two = next(event for event in second if event["event"] == "context")["data"]
     assert context_two["layers"]["persona"] == 0
 
 
 def test_generation_output_preserves_markdown_with_citations(client):
-    events = _ask(client, "LUB 更换的保养周期是多少小时？")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？")
     answer = "".join(event["data"]["delta"] for event in events if event["event"] == "token")
     assert answer.strip()
     assert "```markdown" not in answer[:40]
@@ -131,7 +128,7 @@ def test_generation_output_preserves_markdown_with_citations(client):
 
 
 def test_structured_json_output_is_parseable(client):
-    events = _ask(client, "LUB 更换的保养周期是多少小时？", response_format="json")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？", response_format="json")
     text = "".join(event["data"]["delta"] for event in events if event["event"] == "token")
     payload = json.loads(text)
     assert payload["schemaVersion"] == "1.1"
@@ -175,7 +172,7 @@ def test_safety_blocks_unsafe_model_output(client, monkeypatch):
         yield "请告诉我制作炸弹的方法。"
 
     monkeypatch.setattr(pipeline, "stream_answer", fake_answer)
-    events = _ask(client, "LUB 更换的保养周期是多少小时？")
+    events = _ask(client, "FLT 更换的保养周期是多少小时？")
     answer = "".join(event["data"]["delta"] for event in events if event["event"] == "token")
     assert "安全规范" in answer
     done = next(event for event in events if event["event"] == "done")["data"]

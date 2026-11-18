@@ -1,4 +1,4 @@
-"""API v1 并行入口：错误包、配置、Build 与旧链路兼容。"""
+"""API v1：错误包、配置、Build，以及与问答链路的兼容性。"""
 
 import pytest
 from fastapi.testclient import TestClient

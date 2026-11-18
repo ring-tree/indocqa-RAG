@@ -29,7 +29,7 @@ def _write_pack(root, pack_id="demo-pack", version="1.0.0", **overrides):
     }
     (path / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     (path / "intent.json").write_text(
-        json.dumps(overrides.get("intent", {"keywords": {"term": ["空压机"]}}), ensure_ascii=False),
+        json.dumps(overrides.get("intent", {"keywords": {"term": ["智能网关"]}}), ensure_ascii=False),
         encoding="utf-8",
     )
     (path / "ui.json").write_text(
@@ -136,7 +136,7 @@ def test_diff_and_build_snapshot(tmp_path):
     loader = PackLoader(tmp_path, engine_version="0.1.0")
     old = loader.load("demo-pack", "1.0.0")
     new_data = old.pack.model_dump()
-    new_data["intent"]["keywords"]["term"] = ["空压机", "储气罐"]
+    new_data["intent"]["keywords"]["term"] = ["智能网关", "缓存模块"]
     new_data["ui"]["subtitle"] = "新副标题"
     new_data["folders"]["default"] = "通用"
     new = DomainPack.model_validate(new_data)
@@ -174,13 +174,12 @@ def test_schema_has_pack_columns(tmp_path):
     plane.close()
 
 
-def test_builtin_industrial_pack_loads():
+def test_builtin_packs_are_discoverable():
     from app.core.config import SERVER_ROOT
 
     loader = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0")
-    loaded = loader.load("industrial-compressor", "1.0.0")
-    assert loaded.pack.manifest.domain == "industrial"
-    assert loaded.pack.manifest.languages == ["zh"]
+    discovered = {item["packId"] for item in loader.discover()}
+    assert {"customer-service-faq", "example-minimal"} <= discovered
 
 
 def test_builtin_customer_service_pack_loads():

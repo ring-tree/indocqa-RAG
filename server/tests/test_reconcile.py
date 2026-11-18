@@ -30,7 +30,7 @@ def test_reconcile_removes_orphans_and_enqueues_missing(tmp_path):
     )
     keyword = Bm25KeywordAdapter(tmp_path / "bm25")
     keyword.ensure_namespace(namespace, "zh-CN")
-    keyword.upsert(namespace, [KeywordRecord("c1", "空压机", {"doc_id": "doc-a"})])
+    keyword.upsert(namespace, [KeywordRecord("c1", "智能网关", {"doc_id": "doc-a"})])
 
     report = reconcile_build(plane, build, vector, keyword)
 

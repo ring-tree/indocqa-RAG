@@ -5,7 +5,7 @@ import re
 import threading
 from uuid import uuid4
 
-from fastapi import APIRouter, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -17,6 +17,7 @@ from app.core.exceptions import (
     ParamError,
     UnsupportedFormatError,
 )
+from app.core.runtime_overrides import use_overrides
 from app.indexing import store
 from app.indexing.folders import (
     DEFAULT_FOLDER,
@@ -34,8 +35,20 @@ from app.indexing.jobs import create_job, get_job, run_ingest_job
 from app.indexing.lock import write_guard
 from app.indexing.manifest import Manifest
 from app.indexing.moves import batch_move, undo_move
+from app.packs.runtime import overrides_for_kb
 
-router = APIRouter(prefix="/api/kb")
+
+def _pack_scope(request: Request):
+    """可选 KB 作用域：X-KB-Id 或 ?kbId= 时按 KB 绑定 Pack 执行本请求。"""
+    kb_id = request.headers.get("X-KB-Id") or request.query_params.get("kbId")
+    if not kb_id:
+        yield
+        return
+    with use_overrides(overrides_for_kb(kb_id, get_settings())):
+        yield
+
+
+router = APIRouter(prefix="/api/kb", dependencies=[Depends(_pack_scope)])
 
 MAX_BYTES = 20 * 1024 * 1024
 _SAFE_NAME = re.compile(r"[^\w.\-\u4e00-\u9fff]+")

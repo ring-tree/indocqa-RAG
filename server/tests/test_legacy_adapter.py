@@ -1,4 +1,4 @@
-"""旧链路 Pack 覆盖层：资产映射与行为等价测试。"""
+"""问答链路 Pack 覆盖层：资产映射与行为等价测试。"""
 
 import pytest
 
@@ -14,26 +14,25 @@ from app.packs.loader import PackLoader
 
 
 @pytest.fixture()
-def industrial():
+def support_pack():
     clear_overrides()
     loader = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0")
-    loaded = loader.load("industrial-compressor", "1.0.0")
-    set_overrides(overrides_from_pack(loaded.pack))
+    loaded = loader.load("customer-service-faq", "1.0.0")
+    set_overrides(overrides_from_pack(loaded.pack, content_hash=loaded.content_hash))
     yield get_overrides()
     clear_overrides()
 
 
-def test_pack_overrides_are_complete(industrial):
-    assert industrial is not None
-    assert len(industrial.terms_clusters) == 34
-    assert "sources.md" in industrial.skip_files
-    assert industrial.folder_migration["screw"] == "设备手册/螺杆空压机"
-    assert industrial.authority_types["手册"] == 1.0
-    assert "工程师" in industrial.persona_roles
-    assert industrial.ui["examples"]
-    assert industrial.data_fact_units
-    # 工业 Pack 暂不启用风格覆盖，避免改变 P4 等价行为
-    assert industrial.prompt_style.get("tone") == ""
+def test_pack_overrides_are_complete(support_pack):
+    assert support_pack is not None
+    assert len(support_pack.terms_clusters) == 15
+    assert "sources.md" in support_pack.skip_files
+    assert support_pack.folder_migration["退款"] == "售后支持/退换货"
+    assert support_pack.authority_types["政策"] == 1.0
+    assert "客服专员" in support_pack.persona_roles
+    assert support_pack.ui["examples"]
+    assert support_pack.data_fact_units
+    assert support_pack.prompt_style.get("tone") == "友好、简洁、先结论后依据"
 
 
 def test_data_facts_and_prompt_style_overrides():
@@ -59,13 +58,13 @@ def test_data_facts_and_prompt_style_overrides():
         clear_overrides()
 
 
-def test_infer_folder_uses_pack(industrial):
+def test_infer_folder_uses_pack(support_pack):
     from app.indexing.folders import folder_from_pack
 
-    assert folder_from_pack("screw_manual.pdf") == "设备手册/螺杆空压机"
+    assert folder_from_pack("退款政策说明.pdf") == "售后支持/退换货"
     assert folder_from_pack("ordinary.pdf") == "未分类"
     clear_overrides()
-    assert folder_from_pack("screw_manual.pdf") is None
+    assert folder_from_pack("退款政策说明.pdf") is None
 
 
 def test_classify_uses_pack_keywords():
@@ -99,16 +98,16 @@ def test_persona_uses_pack_roles():
         clear_overrides()
 
 
-def test_industrial_intent_is_equivalent():
+def test_support_intent_is_equivalent():
     from app.retrieval.intents import classify
 
-    questions = ["E-05 怎么办", "MTBF 是什么意思", "保养周期是多少"]
+    questions = ["退款失败怎么办", "退款是什么意思", "退款一般多久到账"]
     clear_overrides()
     baseline = [classify(question).intent for question in questions]
 
     loader = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0")
-    loaded = loader.load("industrial-compressor", "1.0.0")
-    set_overrides(overrides_from_pack(loaded.pack))
+    loaded = loader.load("customer-service-faq", "1.0.0")
+    set_overrides(overrides_from_pack(loaded.pack, content_hash=loaded.content_hash))
     try:
         assert [classify(question).intent for question in questions] == baseline
     finally:

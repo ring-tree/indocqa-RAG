@@ -449,6 +449,7 @@ class ControlPlane:
                 "UPDATE builds SET status='active', activated_at=? WHERE id=?",
                 (now, build_id),
             )
+        self.write_audit("build.activate", "build", build_id, kb_id=kb_id)
 
     def bind_pack(self, kb_id: str, pack_id: str, version: str) -> None:
         with self.transaction() as conn:
@@ -732,6 +733,104 @@ class ControlPlane:
                 "SELECT COUNT(*) FROM index_tasks WHERE status IN ('pending','running')"
             ).fetchone()
         return int(row[0])
+
+    # ---------- 增量构建 / 文档版本 ----------
+
+    def bump_corpus_revision(self, build_id: str, delta: int = 1) -> int:
+        with self.transaction() as conn:
+            conn.execute(
+                "UPDATE builds SET corpus_revision = corpus_revision + ? WHERE id=?",
+                (delta, build_id),
+            )
+            row = conn.execute(
+                "SELECT corpus_revision FROM builds WHERE id=?", (build_id,)
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def list_chunk_ids(self, build_id: str, doc_id: str | None = None) -> list[str]:
+        sql = "SELECT chunk_id FROM chunks WHERE build_id=?"
+        params: list[Any] = [build_id]
+        if doc_id:
+            sql += " AND doc_id=?"
+            params.append(doc_id)
+        return [row["chunk_id"] for row in self._conn.execute(sql, params)]
+
+    def delete_document_chunks(self, build_id: str, doc_id: str) -> list[str]:
+        chunk_ids = self.list_chunk_ids(build_id, doc_id)
+        with self.transaction() as conn:
+            conn.execute(
+                "DELETE FROM chunks WHERE build_id=? AND doc_id=?", (build_id, doc_id)
+            )
+            conn.execute(
+                "DELETE FROM parent_chunks WHERE build_id=? AND doc_id=?",
+                (build_id, doc_id),
+            )
+            conn.execute(
+                "DELETE FROM build_documents WHERE build_id=? AND doc_id=?",
+                (build_id, doc_id),
+            )
+        return chunk_ids
+
+    def update_document(
+        self,
+        doc_id: str,
+        *,
+        content_hash: str,
+        object_key: str,
+        filename: str,
+        pages: int | None = None,
+        chunks: int = 0,
+    ) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                """
+                UPDATE documents
+                SET content_hash=?, object_key=?, filename=?, pages=?, chunks=?
+                WHERE id=?
+                """,
+                (content_hash, object_key, filename, pages, chunks, doc_id),
+            )
+
+    def save_undo(
+        self, kb_id: str, doc_id: str, snapshot: dict, ttl_days: int = 7
+    ) -> str:
+        undo_id = _id("undo")
+        now = datetime.now(UTC)
+        expires = (now + timedelta(days=ttl_days)).isoformat(timespec="seconds")
+        with self.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO document_undo_cache(
+                    id, kb_id, doc_id, previous_doc_id, snapshot_json,
+                    expires_at, created_at
+                ) VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    undo_id,
+                    kb_id,
+                    doc_id,
+                    doc_id,
+                    _json(snapshot),
+                    expires,
+                    now.isoformat(timespec="seconds"),
+                ),
+            )
+        return undo_id
+
+    def get_latest_undo(self, kb_id: str, doc_id: str) -> dict | None:
+        row = self._conn.execute(
+            """
+            SELECT * FROM document_undo_cache
+            WHERE kb_id=? AND doc_id=? AND expires_at > ?
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (kb_id, doc_id, _now()),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def delete_undo(self, undo_id: str) -> None:
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM document_undo_cache WHERE id=?", (undo_id,))
 
     # ---------- 审计 ----------
 

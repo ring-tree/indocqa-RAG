@@ -20,15 +20,15 @@ def test_text_markdown_csv_and_svg(tmp_path, settings):
     assert result.parse_status == "ok" and "4000" in (result.text or "")
 
     md = tmp_path / "manual.md"
-    md.write_text("# 第 1 章\n\n| 代码 | 含义 |\n| --- | --- |\n| E-05 | 排气温度过高 |\n", encoding="utf-8")
+    md.write_text("# 第 1 章\n\n| 代码 | 含义 |\n| --- | --- |\n| E-05 | 设备温度过高 |\n", encoding="utf-8")
     result = extract(md, settings)
     assert result.parse_status == "ok"
     assert "E-05" in (result.text or "")
 
     csv_file = tmp_path / "codes.csv"
-    csv_file.write_text("code,meaning\nE-05,排气温度过高\n", encoding="utf-8")
+    csv_file.write_text("code,meaning\nE-05,设备温度过高\n", encoding="utf-8")
     result = extract(csv_file, settings)
-    assert result.meta["rows"] == 2 and "排气温度过高" in (result.text or "")
+    assert result.meta["rows"] == 2 and "设备温度过高" in (result.text or "")
 
     svg = tmp_path / "figure.svg"
     svg.write_text('<svg width="120" height="80"><rect /></svg>', encoding="utf-8")
@@ -52,14 +52,14 @@ def test_pdf_and_docx_text(tmp_path, settings):
 
     docx_path = tmp_path / "manual.docx"
     word = Document()
-    word.add_paragraph("LUB 更换周期为 4000 小时。")
+    word.add_paragraph("FLT 更换周期为 4000 小时。")
     table = word.add_table(rows=1, cols=2)
     table.rows[0].cells[0].text = "E-05"
-    table.rows[0].cells[1].text = "排气温度过高"
+    table.rows[0].cells[1].text = "设备温度过高"
     word.save(docx_path)
     result = extract(docx_path, settings)
     assert result.parse_status == "ok"
-    assert "4000" in (result.text or "") and "排气温度过高" in (result.text or "")
+    assert "4000" in (result.text or "") and "设备温度过高" in (result.text or "")
 
 
 def test_xlsx_and_pptx_text(tmp_path, settings):
@@ -71,10 +71,10 @@ def test_xlsx_and_pptx_text(tmp_path, settings):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.append(["代码", "含义"])
-    sheet.append(["E-05", "排气温度过高"])
+    sheet.append(["E-05", "设备温度过高"])
     workbook.save(xlsx_path)
     result = extract(xlsx_path, settings)
-    assert result.meta["sheets"] == 1 and "排气温度过高" in (result.text or "")
+    assert result.meta["sheets"] == 1 and "设备温度过高" in (result.text or "")
 
     pptx_path = tmp_path / "slides.pptx"
     presentation = Presentation()

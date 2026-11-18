@@ -60,10 +60,10 @@ async def lifespan(app: FastAPI):
             enabled = enable_legacy_pack(
                 settings.legacy_pack, settings.packs_dir, settings.version
             )
-            logger.info("旧链路已加载 Domain Pack：%s", enabled)
-        except Exception as e:  # noqa: BLE001 Pack 失败不阻塞旧链路启动
+            logger.info("问答链路已加载 Domain Pack：%s", enabled)
+        except Exception as e:  # noqa: BLE001 Pack 失败不阻塞问答链路启动
             clear_overrides()
-            logger.warning("旧链路 Domain Pack 加载失败，使用默认配置：%s", e)
+            logger.warning("问答链路 Domain Pack 加载失败，使用默认配置：%s", e)
     else:
         clear_overrides()
     removed = await asyncio.to_thread(_maintenance, settings)
@@ -121,13 +121,40 @@ def create_app() -> FastAPI:
     app.include_router(kb_router)
     app.include_router(attachments_router)
     app.include_router(sessions_router)
-    # 新引擎并行入口：只挂 /api/v1，不替换旧 /api
+    # 控制面与构建编排链路：只挂 /api/v1，不改动问答与知识运营链路
     app.include_router(v1_router)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
         request_id = request.headers.get("X-Request-Id") or uuid4().hex[:12]
         request.state.request_id = request_id
+        # /api/v1 静态 Bearer 鉴权：健康检查与 loopback 例外
+        if (
+            request.url.path.startswith("/api/v1")
+            and request.url.path != "/api/v1/health"
+            and settings.auth_token
+        ):
+            client_host = request.client.host if request.client else ""
+            unauthorized = (
+                client_host not in {"127.0.0.1", "::1"}
+                and request.headers.get("Authorization") != f"Bearer {settings.auth_token}"
+            )
+            if unauthorized:
+                name, retryable = error_meta(40101)
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "error": {
+                            "code": 40101,
+                            "name": name,
+                            "message": "未授权访问",
+                            "detail": None,
+                            "retryable": retryable,
+                            "requestId": request_id,
+                        }
+                    },
+                    headers={"X-Request-Id": request_id},
+                )
         start = time.perf_counter()
         response = await call_next(request)
         if request.url.path.startswith("/api/v1"):

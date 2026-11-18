@@ -193,7 +193,7 @@ def _resolve_auto(settings) -> str:
         return "ollama"
     if _AUTO_CHOICE["backend"] == "local" and now - float(_AUTO_CHOICE["ts"] or 0) < _PROBE_TTL:
         return "local"
-    if _ollama_available(settings.ollama_base_url, settings.ollama_embed_model):
+    if _ollama_available(settings.ollama_base_url, settings.embed_ollama_model):
         _AUTO_CHOICE.update(backend="ollama", ts=now)
         return "ollama"
     _AUTO_CHOICE.update(backend="local", ts=now)
@@ -205,10 +205,10 @@ def get_embedder(settings) -> BaseEmbedder:
     if backend == "auto":
         backend = _resolve_auto(settings)
     if backend == "ollama":
-        key = ("ollama", settings.ollama_base_url, settings.ollama_embed_model)
+        key = ("ollama", settings.ollama_base_url, settings.embed_ollama_model)
         if key not in _embedder_cache:
             _embedder_cache[key] = OllamaEmbedder(
-                settings.ollama_base_url, settings.ollama_embed_model
+                settings.ollama_base_url, settings.embed_ollama_model
             )
     elif backend == "minilm":
         key = ("minilm",)
@@ -234,7 +234,7 @@ def backend_id_for(settings) -> str:
     if backend == "auto":
         backend = _resolve_auto(settings)
     if backend == "ollama":
-        return f"ollama-{settings.ollama_embed_model.replace(':', '-')}"
+        return f"ollama-{settings.embed_ollama_model.replace(':', '-')}"
     if backend == "minilm":
         return "minilm"
     return "fe-" + settings.embed_local_model.split("/")[-1].replace(":", "-")

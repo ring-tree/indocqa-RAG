@@ -24,7 +24,7 @@ def _settings():
     )
 
 
-def _record(text: str = "保养周期为 4000 小时。空气过滤器每 2000 小时更换。") -> dict:
+def _record(text: str = "保养周期为 4000 小时。滤网每 2000 小时更换。") -> dict:
     return {
         "id": "att1",
         "session_id": "session001",
@@ -127,7 +127,7 @@ def _parse_sse(text: str) -> list[dict]:
 
 def test_attachment_only_chat_bypasses_empty_kb_and_cites_attachment(ctx):
     client, _ = ctx
-    data = "设备保养周期为 4000 小时。空气过滤器每 2000 小时更换。".encode()
+    data = "设备保养周期为 4000 小时。滤网每 2000 小时更换。".encode()
     session_id, attachment_id = _upload_text(client, data)
     response = client.post(
         "/api/chat",

@@ -1,6 +1,6 @@
-"""领域词静态检查（T-P4-16）：工业词汇只能出现在 Pack 资产中。
+"""领域词静态检查（T-P4-16）：领域词汇只能出现在 Pack 资产中。
 
-引擎与前端示例必须保持领域中立；工业术语、目录模板和语料名称由
+引擎与前端示例必须保持领域中立；领域术语、目录模板和语料名称由
 `server/packs/<id>/<version>/` 提供，不得回流到 `server/app` 或 `web/src`。
 """
 
@@ -52,17 +52,17 @@ def _scan(base: pathlib.Path) -> list[str]:
     return hits
 
 
-def test_engine_has_no_industrial_vocabulary():
+def test_engine_has_no_domain_vocabulary():
     hits = _scan(ENGINE_DIR)
-    assert not hits, "引擎目录出现工业领域词：\n" + "\n".join(hits)
+    assert not hits, "引擎目录出现领域词：\n" + "\n".join(hits)
 
 
-def test_web_has_no_industrial_vocabulary():
+def test_web_has_no_domain_vocabulary():
     hits = _scan(WEB_DIR)
-    assert not hits, "前端目录出现工业领域词：\n" + "\n".join(hits)
+    assert not hits, "前端目录出现领域词：\n" + "\n".join(hits)
 
 
-def test_customer_service_pack_has_no_industrial_vocabulary():
-    """第二领域 Pack 不得复用工业术语、目录或语料名称。"""
+def test_customer_service_pack_has_no_other_domain_vocabulary():
+    """第二领域 Pack 不得复用其他领域的术语、目录或语料名称。"""
     hits = _scan(SUPPORT_PACK_DIR)
-    assert not hits, "客服 Pack 出现工业领域词：\n" + "\n".join(hits)
+    assert not hits, "客服 Pack 出现其他领域词：\n" + "\n".join(hits)

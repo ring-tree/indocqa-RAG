@@ -9,6 +9,7 @@ import threading
 import time
 from uuid import uuid4
 
+from app.core.runtime_overrides import get_overrides, use_overrides
 from app.indexing.ingest import ingest_file
 
 _LOCK = threading.Lock()
@@ -37,6 +38,8 @@ def create_job(total_docs: int = 1) -> str:
             "createdTs": time.time(),
             "result": None,
             "error": None,
+            # 捕获提交请求的 Pack 作用域，供后台线程复用
+            "overrides": get_overrides(),
         }
         _cleanup_locked()
     return job_id
@@ -90,14 +93,16 @@ def run_ingest_job(
             currentDoc=1,
             message=f"准备处理 {path.name}",
         )
-        result = ingest_file(
-            path,
-            settings,
-            stored_name,
-            folder,
-            progress=progress,
-            display_name=display_name,
-        )
+        job = get_job(job_id)
+        with use_overrides(job.get("overrides") if job else None):
+            result = ingest_file(
+                path,
+                settings,
+                stored_name,
+                folder,
+                progress=progress,
+                display_name=display_name,
+            )
         message = "内容已存在，已跳过" if result.get("duplicated") else "入库完成"
         update_job(
             job_id,

@@ -2,7 +2,6 @@
 
 import asyncio
 import pathlib
-import shutil
 import time
 
 import pytest
@@ -17,8 +16,7 @@ from app.parsing.loader import load_document
 from app.retrieval.terms import build_clusters
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
-SEED = pathlib.Path(__file__).resolve().parents[2] / "data" / "terms" / "seed.json"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 @pytest.fixture()
@@ -29,7 +27,6 @@ def tmp_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("INDOCQA_EMBED_BACKEND", "local")
     terms_dir = tmp_path / "terms"
     terms_dir.mkdir()
-    shutil.copy(SEED, terms_dir / "seed.json")
     monkeypatch.setenv("INDOCQA_TERMS_FILE", str(terms_dir / "terms.json"))
     get_settings.cache_clear()
     store._client.cache_clear()
@@ -40,7 +37,7 @@ def tmp_settings(tmp_path, monkeypatch):
 
 def test_md_table_caption_from_preceding_line(tmp_settings):
     doc = load_document(FIXTURE)
-    tables = [t for t in doc.tables if "LUB" in " ".join(" ".join(r) for r in t.rows)]
+    tables = [t for t in doc.tables if "FLT" in " ".join(" ".join(r) for r in t.rows)]
     assert tables, "保养周期表未被解析"
     # fixture 题注无“表 X-X”编号，按设计不编造定位号（PDF 题注路径由集成场景覆盖）
     assert tables[0].table_no is None
@@ -53,7 +50,7 @@ def test_backend_mismatch_rejected(tmp_settings):
     manifest.data["backend"] = "someone-else"
     manifest.save()
     with pytest.raises(BackendMismatchError):
-        ingest_file(CORPUS / "无油静音空压机操作说明_厂商公开.pdf", tmp_settings)
+        ingest_file(CORPUS / "保修服务_质保与维修.md", tmp_settings)
 
 
 def test_preview_fixture_ok(tmp_settings):
@@ -83,12 +80,12 @@ def test_preview_scanned_pdf_rejected(tmp_settings, tmp_path):
         preview_mod.load_document = original
 
 
-def test_noise_cluster_filtered_by_frequency(tmp_settings, industrial_pack):
+def test_noise_cluster_filtered_by_frequency(tmp_settings, domain_pack):
     ingest_file(FIXTURE, tmp_settings)
     clusters = build_clusters(tmp_settings)
     noisy = [c for c in clusters if any("Running time" in m for m in c)]
     assert not noisy, "低频噪声簇未被过滤"
-    assert any(any(m == "LUB" for m in c) for c in clusters), "语料抽取的有效簇被误杀"
+    assert any(any(m == "FLT" for m in c) for c in clusters), "语料抽取的有效簇被误杀"
 
 
 @pytest.mark.asyncio
@@ -123,7 +120,7 @@ async def test_citation_retry_emits_trace(tmp_settings, monkeypatch):
     monkeypatch.setattr(pipeline, "stream_answer", fake_answer_no_citation)
     events = []
     async for ev in pipeline.chat_stream(
-        "LUB 更换的保养周期是多少小时？", "kb", settings=tmp_settings
+        "FLT 更换的保养周期是多少小时？", "kb", settings=tmp_settings
     ):
         events.append(ev)
     stages = [e["data"].get("stage") for e in events if e["event"] == "trace"]
@@ -134,7 +131,7 @@ async def test_citation_retry_emits_trace(tmp_settings, monkeypatch):
     monkeypatch.setattr(pipeline, "stream_answer", fake_answer_with_citation)
     events2 = []
     async for ev in pipeline.chat_stream(
-        "LUB 更换的保养周期是多少小时？", "kb", settings=tmp_settings
+        "FLT 更换的保养周期是多少小时？", "kb", settings=tmp_settings
     ):
         events2.append(ev)
     stages2 = [e["data"].get("stage") for e in events2 if e["event"] == "trace"]
@@ -172,7 +169,7 @@ async def test_retrieval_timeout_returns_error(tmp_settings, monkeypatch):
     started = time.perf_counter()
     events = [
         event
-        async for event in pipeline.chat_stream("LUB 周期", "kb", settings=settings)
+        async for event in pipeline.chat_stream("FLT 周期", "kb", settings=settings)
     ]
     elapsed = time.perf_counter() - started
     assert elapsed < 1.5

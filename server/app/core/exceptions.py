@@ -170,3 +170,10 @@ class BuildStateConflictError(AppError):
 
     code = 40905
     http_status = 409
+
+
+class BuildBlockedError(AppError):
+    """40911 Build 因零分块或全量失败被阻塞。"""
+
+    code = 40911
+    http_status = 409

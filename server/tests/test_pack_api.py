@@ -22,7 +22,7 @@ def _write_pack(root, version="1.0.0", **overrides):
     }
     (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (path / "intent.json").write_text(
-        json.dumps(overrides.get("intent", {"keywords": {"term": ["空压机"]}}), ensure_ascii=False),
+        json.dumps(overrides.get("intent", {"keywords": {"term": ["智能网关"]}}), ensure_ascii=False),
         encoding="utf-8",
     )
     (path / "ui.json").write_text(
@@ -38,7 +38,7 @@ def client(tmp_path, monkeypatch):
     _write_pack(
         packs,
         "1.1.0",
-        intent={"keywords": {"term": ["空压机", "储气罐"]}},
+        intent={"keywords": {"term": ["智能网关", "缓存模块"]}},
         ui={"subtitle": "新版"},
     )
     monkeypatch.setenv("INDOCQA_PACKS_DIR", str(packs))

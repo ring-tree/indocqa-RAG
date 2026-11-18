@@ -36,6 +36,12 @@ class BM25Index:
         self._instance = None
         self._flush()
 
+    def replace(self, docs: dict[str, str]) -> None:
+        """整体替换文档集（用于清除旧术语标签后重建）。"""
+        self.docs = dict(docs)
+        self._instance = None
+        self._flush()
+
     def remove_doc(self, doc_id: str) -> None:
         self.docs = {k: v for k, v in self.docs.items() if not k.startswith(doc_id + "-")}
         self._instance = None

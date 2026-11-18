@@ -110,9 +110,9 @@ def test_outbox_claim_complete_and_retry(plane):
 
 def test_folder_path_is_unique(plane):
     kb = plane.create_kb("测试库", kb_id="kb_test")
-    plane.create_folder(kb, "设备手册/螺杆空压机")
+    plane.create_folder(kb, "售后支持/退换货")
     with pytest.raises(sqlite3.IntegrityError):
-        plane.create_folder(kb, "设备手册/螺杆空压机")
+        plane.create_folder(kb, "售后支持/退换货")
 
 
 def test_audit_log_roundtrip(plane):

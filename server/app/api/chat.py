@@ -1,6 +1,7 @@
 """问答接口：SSE 流式（token / sources / done / error 事件见 openapi.yaml）。"""
 
 import json
+from contextlib import nullcontext
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -17,8 +18,11 @@ from app.core.exceptions import (
     UpstreamError,
 )
 from app.core.llm import LLMGateway
+from app.core.runtime_overrides import use_overrides
+from app.engine.retrieval_bridge import active_build_id
 from app.graph import pipeline
 from app.indexing.folders import FolderPathError, normalize_folder
+from app.packs.runtime import overrides_for_kb
 from app.session import store as session_store
 
 router = APIRouter(prefix="/api")
@@ -46,7 +50,20 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     has_attachments = bool(attachments) or bool(
         req.session_id and attachment_repo.has_ready(settings.session_db, req.session_id)
     )
-    if req.mode == "kb" and pipeline.kb_is_empty(settings) and not has_attachments:
+    backend = getattr(settings, "answer_backend", "auto")
+    engine_kb = req.kb_id or (settings.legacy_kb if backend == "engine" else None)
+    engine_ready = bool(
+        req.mode == "kb"
+        and backend in {"auto", "engine"}
+        and engine_kb
+        and active_build_id(engine_kb)
+    )
+    if (
+        req.mode == "kb"
+        and not engine_ready
+        and pipeline.kb_is_empty(settings)
+        and not has_attachments
+    ):
         raise KBEmptyError("知识库为空，请先入库文档（POST /api/kb/ingest）")
     gateway = LLMGateway(settings, req.profile)
     if req.profile and req.profile != "auto" and req.profile not in gateway.profile_ids:
@@ -71,23 +88,29 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
         folders.insert(0, folder)
     folder = None
 
+    # 请求级 Pack 作用域：显式 kbId 时以 KB 绑定为准，不继承进程默认 Pack。
+    overrides = overrides_for_kb(req.kb_id, settings) if req.kb_id else None
+
     async def event_gen():
-        async for ev in pipeline.chat_stream(
-            req.message,
-            req.mode,
-            req.top_k,
-            settings,
-            session_id=req.session_id,
-            profile=None if req.profile in (None, "auto") else req.profile,
-            folder=folder,
-            folders=folders or None,
-            response_format=req.response_format,
-            attachments=attachments or None,
-        ):
-            if ev["event"] == "done":
-                ev["data"]["request_id"] = rid
-            data = json.dumps(ev["data"], ensure_ascii=False)
-            yield f"event: {ev['event']}\ndata: {data}\n\n"
+        scope = use_overrides(overrides) if req.kb_id else nullcontext()
+        with scope:
+            async for ev in pipeline.chat_stream(
+                req.message,
+                req.mode,
+                req.top_k,
+                settings,
+                session_id=req.session_id,
+                profile=None if req.profile in (None, "auto") else req.profile,
+                folder=folder,
+                folders=folders or None,
+                response_format=req.response_format,
+                attachments=attachments or None,
+                kb_id=req.kb_id,
+            ):
+                if ev["event"] == "done":
+                    ev["data"]["request_id"] = rid
+                data = json.dumps(ev["data"], ensure_ascii=False)
+                yield f"event: {ev['event']}\ndata: {data}\n\n"
 
     return StreamingResponse(
         event_gen(),

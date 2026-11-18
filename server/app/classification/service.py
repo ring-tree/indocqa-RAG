@@ -176,7 +176,6 @@ def _clean_title(filename: str) -> str:
         stem = stem.rsplit(".", 1)[0]
     stem = re.sub(r"^(?:preview|[0-9a-f]{8})_[0-9a-f]{8}_", "", stem)
     stem = re.sub(r"^[0-9a-f]{8}_", "", stem)
-    stem = re.sub(r"[（(]\s*厂商公开\s*[)）]", "", stem)
     overrides = get_overrides()
     cleanup = (
         overrides.title_cleanup

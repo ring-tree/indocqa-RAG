@@ -28,7 +28,7 @@ class FakeEmbedder:
     )
 
     def embed_documents(self, texts):
-        return [[1.0, 0.0] if "空压机" in text else [0.0, 1.0] for text in texts]
+        return [[1.0, 0.0] if "智能网关" in text else [0.0, 1.0] for text in texts]
 
     def embed_query(self, texts):
         return [[1.0, 0.0] for _ in texts]
@@ -48,10 +48,10 @@ def _restore_cli_env(monkeypatch):
 
 def test_init_validate_and_invalid(tmp_path, capsys):
     project = tmp_path / "proj"
-    assert cli.main(["init", "--dir", str(project), "--pack", "industrial-compressor@1.0.0"]) == 0
+    assert cli.main(["init", "--dir", str(project), "--pack", "customer-service-faq@1.0.0"]) == 0
     config = json.loads((project / "indocqa.json").read_text(encoding="utf-8"))
     assert config["kbId"] == "kb_default"
-    assert config["pack"] == "industrial-compressor@1.0.0"
+    assert config["pack"] == "customer-service-faq@1.0.0"
     assert (project / "data" / "engine" / "control.db").exists()
     assert (project / "data" / "corpus").is_dir()
     assert cli.main(["validate", "--dir", str(project)]) == 0
@@ -69,7 +69,7 @@ def test_build_and_query_with_fake_runtime(tmp_path, monkeypatch, capsys):
     assert cli.main(["init", "--dir", str(project)]) == 0
     corpus = project / "data" / "corpus"
     (corpus / "faq.md").write_text(
-        "# 空压机维护\n\n空压机润滑油更换周期为 4000 小时。\n",
+        "# 智能网关维护\n\n智能网关滤芯更换周期为 4000 小时。\n",
         encoding="utf-8",
     )
 
@@ -95,11 +95,11 @@ def test_build_and_query_with_fake_runtime(tmp_path, monkeypatch, capsys):
     assert "构建完成" in build_output
     assert "documents=1" in build_output
 
-    assert cli.main(["query", "--dir", str(project), "空压机"]) == 0
+    assert cli.main(["query", "--dir", str(project), "智能网关"]) == 0
     query_output = capsys.readouterr().out
-    assert "空压机" in query_output
+    assert "智能网关" in query_output
     assert "faq.md" in query_output
 
-    assert cli.main(["query", "--dir", str(project), "--json", "空压机"]) == 0
+    assert cli.main(["query", "--dir", str(project), "--json", "智能网关"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["hits"] and payload["hits"][0]["filename"] == "faq.md"

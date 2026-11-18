@@ -3,13 +3,12 @@
 约定：
 - 项目目录下的 `indocqa.json` 保存 KB、引擎数据目录、Pack 与语料路径；
 - CLI 只装配既有引擎能力，不复制业务逻辑；
-- `query` 使用新引擎的 Build 级检索，输出命中块与来源文档。
+- `query` 使用构建链路的 Build 级检索，输出命中块与来源文档。
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -17,14 +16,11 @@ from pathlib import Path
 
 from app.control.db import ControlPlane
 from app.core.config import SERVER_ROOT, get_settings
-from app.engine.pipeline import ChunkInput
+from app.engine.ingest import ingest_corpus
 from app.engine.runtime import get_runtime, reset_runtime
 from app.packs.loader import PackError, PackLoader
-from app.parsing.chunker import build_chunks
-from app.parsing.loader import load_document
 
 CONFIG_NAME = "indocqa.json"
-SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".pdf"}
 DEFAULT_PRESET = "balanced@1"
 
 
@@ -137,16 +133,6 @@ def _install_and_bind(runtime, data: dict, kb_id: str) -> tuple[str, str, str | 
     return pack_id, version, loaded.pack.model_dump_json()
 
 
-def _iter_corpus(corpus_dir: Path) -> list[Path]:
-    if not corpus_dir.is_dir():
-        return []
-    return sorted(
-        path
-        for path in corpus_dir.rglob("*")
-        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
-    )
-
-
 def cmd_init(args) -> int:
     project_dir = Path(args.dir).resolve()
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -254,62 +240,29 @@ def cmd_build(args) -> int:
         plane.attach_pack_snapshot(build_id, snapshot)
 
     corpus_dir = _resolve(project_dir, args.corpus or str(data.get("corpus") or "data/corpus"))
-    files = _iter_corpus(corpus_dir)
-    if not files:
-        return _fail(f"语料目录为空或没有支持的文件: {corpus_dir}")
-
-    document_count = 0
-    chunk_count = 0
-    for path in files:
-        raw = path.read_bytes()
-        content_hash = hashlib.sha256(raw).hexdigest()
-        loaded = load_document(path)
-        children, _parents = build_chunks(loaded)
-        if not children:
-            continue
-        object_key = f"kb/{kb_id}/blobs/{content_hash[:2]}/{content_hash}"
-        runtime.object_store.put(object_key, raw)
-        plane.register_document(
+    skip_files: tuple[str, ...] = ()
+    if pack_id:
+        skip_files = tuple(
+            runtime.pack_registry.load_for_build(pack_id, pack_version).pack.parser.skip_files
+        )
+    try:
+        stats = ingest_corpus(
+            runtime,
             kb_id,
-            loaded.doc_id,
-            content_hash,
-            object_key,
-            path.name,
-            pages=loaded.pages,
-            chunks=len(children),
-        )
-        chunk_count += runtime.engine.index_chunks(
             build_id,
-            loaded.doc_id,
-            [
-                ChunkInput(
-                    chunk_id=child.chunk_id,
-                    text=child.text,
-                    section=child.section,
-                    page=child.page,
-                    kind=child.kind,
-                    table_no=child.table_no,
-                    parent_id=child.parent_id,
-                )
-                for child in children
-            ],
+            corpus_dir,
+            skip_files=skip_files,
+            activate=args.activate,
         )
-        document_count += 1
-        print(f"  已索引 {path.name}：{len(children)} 块")
-
-    plane.update_build_status(
-        build_id,
-        "ready",
-        health_status="ok",
-        stats={"documents": document_count, "chunks": chunk_count},
-    )
-    if args.activate:
-        plane.activate_build(kb_id, build_id)
+    except ValueError as exc:
+        return _fail(str(exc))
     status = plane.get_build(build_id)["status"]
     print(
         f"构建完成：build={build_id} status={status} "
-        f"documents={document_count} chunks={chunk_count}"
+        f"documents={stats.documents} chunks={stats.chunks}"
     )
+    for name in stats.skipped:
+        print(f"  跳过 {name}")
     return 0
 
 

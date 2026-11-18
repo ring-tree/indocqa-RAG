@@ -1,6 +1,6 @@
 """术语归一：同义簇构建（种子 + 语料抽取）、查询扩展、索引侧打标。
 
-簇文件 data/terms/terms.json 由构建命令生成并随库提交；种子见 seed.json。
+簇文件 data/terms/terms.json 由构建命令按当前语料与 Pack 生成，运行时缓存不入库。
 """
 
 import json
@@ -18,19 +18,74 @@ _PAIR_EN = re.compile(r"\b([A-Za-z][A-Za-z0-9\-]{2,30})\s*\(([^()]{2,40}?)\)")
 _MAX_EXPANSION = 6
 
 
+def _pack_meta(overrides) -> dict | None:
+    if not overrides or not overrides.pack_hash:
+        return None
+    return {
+        "id": overrides.pack_id,
+        "version": overrides.pack_version,
+        "hash": overrides.pack_hash,
+    }
+
+
+def _cache_matches(data: dict, overrides) -> bool:
+    """缓存必须与当前 Pack 内容哈希一致；无 Pack 时不能复用 Pack 生成的缓存。"""
+    cached = data.get("pack") or {}
+    current = _pack_meta(overrides)
+    if current is None:
+        return not cached
+    return cached.get("hash") == current["hash"]
+
+
+def _needs_stamp(data: dict, overrides) -> bool:
+    """旧缓存没有 Pack 元数据：视为当前 Pack 生成，只补写哈希，避免无谓重建。"""
+    return bool(_pack_meta(overrides)) and not (data.get("pack") or {})
+
+
 def load_clusters(settings=None) -> list[list[str]]:
-    """KB 簇缓存优先；缺失时用 Pack 种子 + 语料抽取重建（写入 KB 级缓存）。"""
+    """KB 簇缓存优先；Pack 内容哈希变化或移除 Pack 时自动重建。"""
     settings = settings or get_settings()
     path = pathlib.Path(settings.terms_file)
     if not path.exists():
         return build_clusters(settings)
     data = json.loads(path.read_text(encoding="utf-8"))
-    return data.get("clusters", [])
+    overrides = get_overrides()
+    if _cache_matches(data, overrides):
+        return data.get("clusters", [])
+    if _needs_stamp(data, overrides):
+        data["pack"] = _pack_meta(overrides)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        return data.get("clusters", [])
+    return build_clusters(settings, reset_index=True)
 
 
-def build_clusters(settings=None) -> list[list[str]]:
+def reset_terms_tags(settings) -> int:
+    """把 BM25 侧车恢复为 Chroma 原文，清除旧的“同义”标签；保留现有键顺序。"""
+    from app.indexing import store
+    from app.indexing.bm25_index import get_bm25
+
+    collection = store._collection(settings)
+    result = collection.get(include=["documents", "metadatas"])
+    base: dict[str, str] = {}
+    for chunk_id, text, meta in zip(
+        result["ids"], result["documents"], result["metadatas"]
+    ):
+        section = (meta or {}).get("section", "")
+        base[chunk_id] = f"{section}\n{text}" if section else text
+
+    bm25 = get_bm25(settings)
+    ordered = {chunk_id: base[chunk_id] for chunk_id in bm25.docs if chunk_id in base}
+    for chunk_id, text in base.items():
+        ordered.setdefault(chunk_id, text)
+    bm25.replace(ordered)
+    return len(ordered)
+
+
+def build_clusters(settings=None, *, reset_index: bool = False) -> list[list[str]]:
     """种子簇 ∪ 语料抽取簇（并查集合并），写回 terms.json 并给索引打同义标签。"""
     settings = settings or get_settings()
+    if reset_index:
+        reset_terms_tags(settings)
     parent: dict[str, str] = {}
 
     def find(x: str) -> str:
@@ -70,12 +125,15 @@ def build_clusters(settings=None) -> list[list[str]]:
 
     out = pathlib.Path(settings.terms_file)
     out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "builtAt": __import__("time").strftime("%Y-%m-%dT%H:%M:%S"),
+        "clusters": clusters,
+    }
+    pack = _pack_meta(overrides)
+    if pack:
+        payload["pack"] = pack
     out.write_text(
-        json.dumps(
-            {"builtAt": __import__("time").strftime("%Y-%m-%dT%H:%M:%S"), "clusters": clusters},
-            ensure_ascii=False,
-            indent=1,
-        ),
+        json.dumps(payload, ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
     apply_terms_to_index(settings, clusters)

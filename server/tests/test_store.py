@@ -12,7 +12,7 @@ from app.parsing.chunker import build_chunks
 from app.parsing.loader import load_document
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 @pytest.fixture()
@@ -68,7 +68,7 @@ def test_hybrid_search_ranks_table_top(tmp_settings):
     from app.retrieval.searcher import search
 
     ingest_file(FIXTURE, tmp_settings)
-    hits = search("LUB 更换的保养周期是多少小时？", settings=tmp_settings)
+    hits = search("FLT 更换的保养周期是多少小时？", settings=tmp_settings)
     assert hits, "混合检索无命中"
     assert any("4000 h" in h.text for h in hits[:3]), "保养周期表未进前三"
 
@@ -78,4 +78,4 @@ def test_bm25_prefix_code_match(tmp_settings):
 
     ingest_file(FIXTURE, tmp_settings)
     hits = search("E05 故障是什么含义", settings=tmp_settings)
-    assert any("排气温度过高" in h.text for h in hits[:3])
+    assert any("设备温度过高" in h.text for h in hits[:3])

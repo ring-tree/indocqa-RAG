@@ -6,11 +6,16 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 
 @dataclass
 class RuntimeOverrides:
+    pack_id: str = ""
+    pack_version: str = ""
+    pack_hash: str = ""
     intent_keywords: dict[str, list[str]] = field(default_factory=dict)
     intent_connectors: list[str] = field(default_factory=list)
     intent_exceptions: list[str] = field(default_factory=list)
@@ -31,6 +36,8 @@ class RuntimeOverrides:
 
 
 _OVERRIDES: RuntimeOverrides | None = None
+_UNSET = object()
+_SCOPED: ContextVar[object] = ContextVar("indocqa_runtime_overrides", default=_UNSET)
 
 
 def set_overrides(overrides: RuntimeOverrides | None) -> None:
@@ -42,8 +49,21 @@ def clear_overrides() -> None:
     set_overrides(None)
 
 
+@contextmanager
+def use_overrides(overrides: RuntimeOverrides | None):
+    """请求/Pack 作用域覆盖；显式传 None 表示该作用域无 Pack，不继承进程默认。"""
+    token = _SCOPED.set(overrides)
+    try:
+        yield
+    finally:
+        _SCOPED.reset(token)
+
+
 def get_overrides() -> RuntimeOverrides | None:
-    return _OVERRIDES
+    scoped = _SCOPED.get()
+    if scoped is _UNSET:
+        return _OVERRIDES
+    return scoped  # type: ignore[return-value]
 
 
 def prompt_style_text() -> str:

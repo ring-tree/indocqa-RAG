@@ -1,6 +1,6 @@
-"""API v1：并行提供的新引擎入口。
+"""API v1：控制面与构建编排链路的入口。
 
-本模块不替换旧 `/api`；旧链路行为保持不变，P4 完成等价验证后再切换。
+本模块不改动问答与知识运营链路（`/api`）；后者行为保持不变。
 """
 
 from __future__ import annotations
@@ -8,9 +8,10 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config.models import EngineDefaults, KBConfig
@@ -21,15 +22,24 @@ from app.core.exceptions import (
     BuildNotFoundError,
     BuildStateConflictError,
     ConfigInvalidError,
+    FileTooLargeError,
     KnowledgeBaseNotFoundError,
     ParamError,
 )
 from app.core.llm import LLMGateway
 from app.core.runtime_overrides import get_overrides
+from app.engine.ingest import (
+    ingest_corpus,
+    ingest_upload,
+    replace_document,
+    undo_document,
+)
 from app.engine.pipeline import ChunkInput
 from app.engine.runtime import get_runtime
 from app.packs.diff import diff_packs
 from app.packs.loader import PackError
+from app.packs.runtime import ui_profile as render_ui_profile
+from app.packs.runtime import ui_profile_for_kb
 
 router = APIRouter(prefix="/api/v1")
 SCHEMA_DIR = SERVER_ROOT / "config" / "schemas"
@@ -53,10 +63,19 @@ class BuildCreate(BaseModel):
     pipelineVersion: str = ""
     domainPackId: str = ""
     domainPackVersion: str = ""
+    # 可选：Build 级嵌入模型（同维度）；默认使用部署配置的 Ollama 模型
+    embeddingModel: str | None = None
+    # 可选：创建后立即从该目录入库（相对数据根目录或绝对路径）
+    corpusDir: str | None = None
+    activate: bool = False
 
 
 class RollbackRequest(BaseModel):
     buildId: str = Field(min_length=1)
+
+
+class BuildAction(BaseModel):
+    buildId: str | None = None
 
 
 class DocumentCreate(BaseModel):
@@ -102,6 +121,38 @@ def _build_or_404(build_id: str) -> dict:
     if build is None:
         raise BuildNotFoundError(f"Build 不存在: {build_id}")
     return build
+
+
+def _corpus_dir(value: str) -> Path:
+    """限制 corpusDir 位于数据根目录内，避免任意路径读取。"""
+    root = Path(get_settings().corpus_dir).resolve().parent
+    candidate = Path(value)
+    target = (candidate if candidate.is_absolute() else root / candidate).resolve()
+    if target != root and root not in target.parents:
+        raise ParamError("corpusDir 必须位于数据目录内")
+    if not target.is_dir():
+        raise ParamError(f"语料目录不存在: {target}")
+    return target
+
+
+def _resolve_build(kb_id: str, build_id: str | None = None) -> dict:
+    kb = _kb_or_404(kb_id)
+    target = build_id or kb.get("active_build_id")
+    if not target:
+        raise ParamError("知识库没有 active Build")
+    build = _build_or_404(target)
+    if build["kb_id"] != kb_id:
+        raise ParamError("Build 不属于该知识库")
+    if build["status"] != "active":
+        raise BuildStateConflictError("仅 active Build 支持增量写入")
+    return build
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise FileTooLargeError("上传文件不能超过 20 MB")
+    return data
 
 
 def _build_payload(row: dict) -> dict:
@@ -206,17 +257,11 @@ def models() -> dict:
 
 
 @router.get("/ui-profile")
-def ui_profile() -> dict:
-    overrides = get_overrides()
-    ui = overrides.ui if overrides and overrides.ui else {}
-    return {
-        "data": {
-            "subtitle": ui.get("subtitle") or "企业知识库智能问答",
-            "examples": ui.get("examples")
-            or ["这个系统能做什么？", "支持哪些文档格式？", "如何提高检索命中率？"],
-            "folderExample": ui.get("folder_example") or "",
-        }
-    }
+def ui_profile(kbId: str | None = None) -> dict:
+    if kbId:
+        _kb_or_404(kbId)
+        return {"data": ui_profile_for_kb(kbId, get_settings())}
+    return {"data": render_ui_profile(get_overrides())}
 
 
 @router.get("/embedding-models")
@@ -494,30 +539,52 @@ def unbind_pack(kb_id: str) -> dict:
 @router.post("/kbs/{kb_id}/builds", status_code=202)
 def create_build(kb_id: str, body: BuildCreate) -> dict:
     runtime = get_runtime()
-    _kb_or_404(kb_id)
+    kb = _kb_or_404(kb_id)
+    # 未显式指定时沿用 KB 绑定，保证 Build 快照与绑定 Pack 一致
+    pack_id = body.domainPackId or (kb.get("domain_pack_id") or "")
+    pack_version = body.domainPackVersion or (kb.get("domain_pack_version") or "")
     snapshot = None
-    if body.domainPackId:
+    skip_files: tuple[str, ...] = ()
+    if pack_id:
         try:
             loaded = runtime.pack_registry.load_for_build(
-                body.domainPackId, body.domainPackVersion
+                pack_id, pack_version or "1.0.0"
             )
         except ContractError as exc:
             raise ParamError(str(exc)) from exc
         snapshot = loaded.pack.model_dump_json()
+        skip_files = tuple(loaded.pack.parser.skip_files)
     build_id = runtime.engine.create_build(
         kb_id,
         preset=body.preset,
         pipeline_version=body.pipelineVersion,
-        domain_pack_id=body.domainPackId,
-        domain_pack_version=body.domainPackVersion,
+        domain_pack_id=pack_id,
+        domain_pack_version=pack_version,
+        embedding_model=body.embeddingModel,
     )
     if snapshot:
         runtime.plane.attach_pack_snapshot(build_id, snapshot)
+    stats = None
+    if body.corpusDir:
+        try:
+            stats = ingest_corpus(
+                runtime,
+                kb_id,
+                build_id,
+                _corpus_dir(body.corpusDir),
+                skip_files=skip_files,
+                activate=body.activate,
+            )
+        except ValueError as exc:
+            raise ParamError(str(exc)) from exc
+    build = runtime.plane.get_build(build_id) or {}
     return {
         "data": {
             "buildId": build_id,
-            "status": "draft",
+            "status": build.get("status", "draft"),
+            "health": build.get("health_status"),
             "statusUrl": f"/api/v1/builds/{build_id}",
+            "stats": stats.as_dict() if stats else None,
         }
     }
 
@@ -616,6 +683,67 @@ def index_chunks(build_id: str, body: ChunksCreate) -> dict:
     ]
     count = get_runtime().engine.index_chunks(build_id, body.docId, chunks)
     return {"data": {"buildId": build_id, "indexed": count}}
+
+
+@router.post("/kbs/{kb_id}/documents/ingest", status_code=201)
+async def ingest_document(
+    kb_id: str,
+    file: Annotated[UploadFile, File()],
+    buildId: Annotated[str, Form()] = "",
+    folderId: Annotated[str, Form()] = "",
+) -> dict:
+    build = _resolve_build(kb_id, buildId or None)
+    runtime = get_runtime()
+    if folderId and folderId not in {item["id"] for item in runtime.plane.list_folders(kb_id)}:
+        raise ParamError("目录不存在")
+    data = await _read_upload(file)
+    try:
+        result = ingest_upload(
+            runtime,
+            kb_id,
+            build["id"],
+            file.filename or "upload",
+            data,
+            folder_id=folderId or None,
+        )
+    except ValueError as exc:
+        raise ParamError(str(exc)) from exc
+    return {"data": {**result, "buildId": build["id"]}}
+
+
+@router.post("/kbs/{kb_id}/documents/{doc_id}/replace")
+async def replace_document_api(
+    kb_id: str,
+    doc_id: str,
+    file: Annotated[UploadFile, File()],
+    buildId: Annotated[str, Form()] = "",
+) -> dict:
+    build = _resolve_build(kb_id, buildId or None)
+    data = await _read_upload(file)
+    try:
+        result = replace_document(
+            get_runtime(),
+            kb_id,
+            build["id"],
+            doc_id,
+            file.filename or "upload",
+            data,
+        )
+    except ValueError as exc:
+        raise ParamError(str(exc)) from exc
+    return {"data": {**result, "buildId": build["id"]}}
+
+
+@router.post("/kbs/{kb_id}/documents/{doc_id}/undo")
+def undo_document_api(
+    kb_id: str, doc_id: str, body: BuildAction | None = None
+) -> dict:
+    build = _resolve_build(kb_id, body.buildId if body else None)
+    try:
+        result = undo_document(get_runtime(), kb_id, build["id"], doc_id)
+    except ValueError as exc:
+        raise ParamError(str(exc)) from exc
+    return {"data": {**result, "buildId": build["id"]}}
 
 
 @router.post("/search")

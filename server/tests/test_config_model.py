@@ -72,16 +72,16 @@ def test_analyze_impact_reports_unknown_fields():
 def _minimal_pack() -> dict:
     return {
         "manifest": {
-            "id": "industrial-compressor",
+            "id": "customer-service-faq",
             "version": "1.0.0",
-            "domain": "industrial",
+            "domain": "customer-service",
         }
     }
 
 
 def test_minimal_pack_is_valid():
     pack = DomainPack.model_validate(_minimal_pack())
-    assert pack.manifest.id == "industrial-compressor"
+    assert pack.manifest.id == "customer-service-faq"
     assert pack.folders.default == "未分类"
 
 

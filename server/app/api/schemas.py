@@ -32,6 +32,8 @@ class ChatRequest(BaseModel):
     session_id: str | None = Field(default=None, alias="sessionId", max_length=64)
     message: str = Field(default="", max_length=2000)
     mode: str = Field(pattern="^(direct|kb)$")
+    # 控制面知识库 ID；提供时按该 KB 的 Pack 与 active Build 解析
+    kb_id: str | None = Field(default=None, alias="kbId", max_length=64)
     top_k: int | None = Field(default=None, ge=1, le=20, alias="topK")
     # auto / primary / profileN；不传等同 auto
     profile: str | None = Field(default=None, max_length=32)

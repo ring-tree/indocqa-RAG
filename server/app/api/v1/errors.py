@@ -35,6 +35,7 @@ ERROR_META: dict[int, tuple[str, bool]] = {
     40908: ("quota_exceeded", False),
     40909: ("session_busy", True),
     40910: ("version_conflict", False),
+    40911: ("build_blocked", False),
     42901: ("upstream_unavailable", True),
     42902: ("rate_limited", True),
     50001: ("retrieval_error", True),

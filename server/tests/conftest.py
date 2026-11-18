@@ -37,17 +37,23 @@ def _isolate_model_profiles(monkeypatch):
     get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_terms_file(tmp_path, monkeypatch):
+    """默认把术语缓存指向测试临时目录，避免污染仓库级 data/terms/terms.json。"""
+    monkeypatch.setenv("INDOCQA_TERMS_FILE", str(tmp_path / "terms.json"))
+
+
 @pytest.fixture()
-def industrial_pack():
-    """启用工业 Domain Pack 的旧链路覆盖（P4 等价验证场景）。"""
+def domain_pack():
+    """启用客服 Domain Pack 的问答链路覆盖（等价验证场景）。"""
     from app.core.runtime_overrides import clear_overrides, set_overrides
     from app.packs.legacy_adapter import overrides_from_pack
     from app.packs.loader import PackLoader
 
     loaded = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0").load(
-        "industrial-compressor", "1.0.0"
+        "customer-service-faq", "1.0.0"
     )
-    set_overrides(overrides_from_pack(loaded.pack))
+    set_overrides(overrides_from_pack(loaded.pack, content_hash=loaded.content_hash))
     try:
         yield loaded
     finally:

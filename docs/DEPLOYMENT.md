@@ -36,8 +36,8 @@
 
 ```bash
 # 1. 获取代码
-git clone <your-repo-url> indocqa-szccf
-cd indocqa-szccf
+git clone <your-repo-url> indocqa
+cd indocqa
 
 # 2. 配置环境变量
 cp server/.env.example server/.env
@@ -156,10 +156,10 @@ Web 端也可在“文档管理”页上传文档，单个文件 ≤ 20 MB。
    }
    ```
 3. **静态前端**：`cd web && npm run build`，将 `web/dist/` 交给 Nginx；同时把 `/api` 反代到后端。
-4. **鉴权与 HTTPS**：默认无鉴权，公网部署请在反向代理层增加登录、IP 白名单或 API Key。
+4. **鉴权与 HTTPS**：问答与知识运营链路（`/api`）默认无鉴权，公网部署请在反向代理层增加登录、IP 白名单或 API Key；`/api/v1` 可设置 `INDOCQA_AUTH_TOKEN` 启用静态 Bearer 鉴权（本机回环与 `/api/v1/health` 豁免），生产仍建议叠加 HTTPS 与代理层防护。
 5. **密钥管理**：`server/.env` 已被 `.gitignore` 忽略，切勿提交真实 Key。
 6. **备份**：定期备份 `server/data/chroma/`、`server/data/db/sessions.db`、`server/data/uploads/` 与 `server/.env`。
-7. **资源监控**：关注首 Token 时延、检索 P95、进程 RSS 与 `42901` 比例；性能基线见 [`performance/性能测试报告.md`](performance/性能测试报告.md)。
+7. **资源监控**：关注首 Token 时延、检索 P95、进程 RSS 与 `42901` 比例；基准可用 `eval/perf_benchmark.py` 复现。
 
 ## 8. 常见问题排查
 
@@ -189,7 +189,7 @@ curl http://127.0.0.1:8010/api/models
 # 流式问答（应看到 event: trace / sources / token / done）
 curl -N -X POST http://127.0.0.1:8010/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"空压机报错 E-05 应该怎么处理？","mode":"kb"}'
+  -d '{"message":"退款一般多久到账？","mode":"kb"}'
 
 # 后端测试
 cd server && uv run pytest -q
@@ -205,17 +205,17 @@ cd web && npm run lint && npm run build
 uv run --project server --with matplotlib --with psutil python eval/perf_benchmark.py
 ```
 
-输出：
+输出（本地生成，不入库）：
 
 - `docs/performance/性能测试报告.md`
 - `docs/performance/data/*.json|csv`
 - `docs/performance/charts/*.png|svg`
 
-报告包含检索质量、首 Token/端到端时延、入库吞吐、并发 QPS 与资源占用，可直接用于答辩展示。
+报告包含检索质量、首 Token/端到端时延、入库吞吐、并发 QPS 与资源占用，可用于容量规划与回归对比。
 
-## 11. 新引擎（/api/v1）部署与 CLI
+## 11. 控制面与构建编排（`/api/v1`）部署与 CLI
 
-旧 `/api` 链路保持不变；新引擎以并行入口 `/api/v1` 提供控制面、Build、Pack 与检索能力。两者共享同一进程，但使用独立数据目录。
+问答与知识运营链路（`/api`）保持不变；控制面与构建编排链路以 `/api/v1` 提供控制面、Build、Pack 与检索能力。两者共享同一进程，但使用独立数据目录。
 
 ### 11.1 目录与配置
 
@@ -223,11 +223,14 @@ uv run --project server --with matplotlib --with psutil python eval/perf_benchma
 | --- | --- | --- |
 | `INDOCQA_ENGINE_DATA_DIR` | `data/engine` | 控制面 SQLite、Chroma、BM25、对象存储根目录 |
 | `INDOCQA_PACKS_DIR` | `packs` | Domain Pack 根目录 |
-| `INDOCQA_ENGINE_EMBED_DIMENSION` | `1024` | 新引擎嵌入维度，必须与 Ollama 模型一致 |
-| `INDOCQA_LEGACY_PACK` | 空 | 旧链路启用某个 Pack，格式 `<id>@<version>` |
+| `INDOCQA_ENGINE_EMBED_DIMENSION` | `1024` | 构建链路嵌入维度，必须与 Ollama 模型一致 |
+| `INDOCQA_LEGACY_PACK` | 空 | 问答与知识运营链路的默认 Pack，格式 `<id>@<version>` |
+| `INDOCQA_LEGACY_KB` | `kb_default` | 请求未显式传 `kbId` 时用于 Pack 作用域解析 |
+| `INDOCQA_ANSWER_BACKEND` | `auto` | `auto`=有 `kbId` 且 KB 有 active Build 时走构建链路；`legacy` / `engine` 分别强制问答链路与构建链路 |
+| `INDOCQA_AUTH_TOKEN` | 空 | 为空不鉴权；设置后 `/api/v1` 要求 `Authorization: Bearer <token>`（`/api/v1/health` 与本机回环地址豁免） |
 | `INDOCQA_FOLDER_MIGRATION_ENABLED` | `false` | 启动时是否按 Pack 迁移存量目录 |
 
-> 单进程约束同样适用于新引擎：控制面 SQLite、Chroma、BM25 侧车与对象存储均为进程内资源，**只允许 1 个 uvicorn worker**。多实例部署必须改为外部向量库/数据库，或按 KB 分片部署。
+> 单进程约束同样适用于构建链路：控制面 SQLite、Chroma、BM25 侧车与对象存储均为进程内资源，**只允许 1 个 uvicorn worker**。多实例部署必须改为外部向量库/数据库，或按 KB 分片部署。
 
 ### 11.2 CLI 快速路径
 
@@ -257,11 +260,25 @@ CLI 使用 Ollama 嵌入（`bge-m3`），需先执行 `ollama serve` 与 `ollama
 # 健康与版本
 curl http://127.0.0.1:8010/api/v1/health
 
-# 安装 Pack、创建 KB、构建、激活、回滚
+# 安装 Pack、创建 KB、自动入库并激活 Build
 curl -X POST http://127.0.0.1:8010/api/v1/packs/install \
   -H 'Content-Type: application/json' \
   -d '{"packId":"customer-service-faq","version":"1.0.0"}'
+curl -X POST http://127.0.0.1:8010/api/v1/kbs \
+  -H 'Content-Type: application/json' \
+  -d '{"kbId":"kb_cs","name":"客服库","domainPackId":"customer-service-faq","domainPackVersion":"1.0.0"}'
+curl -X POST http://127.0.0.1:8010/api/v1/kbs/kb_cs/builds \
+  -H 'Content-Type: application/json' \
+  -d '{"preset":"balanced@1","corpusDir":"corpus","activate":true}'
+
+# 按 KB 问答与 UI Profile
+curl -N -X POST http://127.0.0.1:8010/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"退款一般多久到账？","mode":"kb","kbId":"kb_cs"}'
+curl 'http://127.0.0.1:8010/api/v1/ui-profile?kbId=kb_cs'
 ```
+
+`corpusDir` 相对数据根目录（与 `INDOCQA_CORPUS_DIR` 的父目录一致）或绝对路径，且必须位于数据根目录内。
 
 完整端点与错误码见 `docs/API.md` 第 11 节。
 

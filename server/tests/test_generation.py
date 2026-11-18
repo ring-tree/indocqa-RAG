@@ -19,13 +19,13 @@ def hit(text: str, index: int = 1):
         sim=0.8,
         text=text,
         doc_id="d1",
-        doc_name="维保手册.md",
+        doc_name="维护手册.md",
         section="1. 保养周期",
         page=3,
         kind="table",
         table_no=None,
         parent_text=text,
-        folder="设备手册",
+        folder="产品手册",
     )
 
 
@@ -33,18 +33,18 @@ def test_normalize_markdown_preserves_valid_markdown_and_cleans_artifacts():
     text = (
         "```markdown\n"
         "# 保养周期\n\n"
-        "**LUB 更换周期为 4000 \\*运行\\*小时**，公式 \\(E=mc^2\\)，乘法 2*3，标识 LUB_46。\n\n"
-        "- 检查油位\n"
+        "**FLT 更换周期为 4000 \\*运行\\*小时**，公式 \\(E=mc^2\\)，乘法 2*3，标识 FLT_46。\n\n"
+        "- 检查滤网状态\n"
         "1. 停机\n\n"
-        "| 项目 | 周期 |\n|---|---|\n| LUB | 4000 |\n\n"
+        "| 项目 | 周期 |\n|---|---|\n| FLT | 4000 |\n\n"
         "```python\nprint('hi')\n```\n"
         "```\n"
     )
     value = formatting.normalize_markdown(text)
     assert value.startswith("# 保养周期")
-    assert "**LUB 更换周期为 4000 *运行*小时**" in value
+    assert "**FLT 更换周期为 4000 *运行*小时**" in value
     assert "$E=mc^2$" in value
-    assert "2*3" in value and "LUB_46" in value
+    assert "2*3" in value and "FLT_46" in value
     assert "| 项目 | 周期 |" in value and "|---|---|" in value
     assert "```python" in value and "print('hi')" in value
     assert "\\*" not in value
@@ -67,47 +67,47 @@ def test_normalize_markdown_does_not_rewrite_math_inside_code():
 def test_to_plain_text_removes_markdown_but_keeps_content_and_citations():
     text = (
         "# 周期\n**4000 小时**，公式 $E=mc^2$，查看[手册](http://x)。\n"
-        "| 项目 | 周期 |\n|---|---|\n| LUB | 4000 |\n"
-        "`LUB-46` 与 2*3。"
+        "| 项目 | 周期 |\n|---|---|\n| FLT | 4000 |\n"
+        "`FLT-46` 与 2*3。"
     )
     plain = formatting.to_plain_text(text)
     assert "#" not in plain and "**" not in plain and "|" not in plain
     assert "4000 小时" in plain and "E=mc^2" in plain
-    assert "手册" in plain and "LUB-46" in plain and "2*3" in plain
+    assert "手册" in plain and "FLT-46" in plain and "2*3" in plain
     assert "项目，周期" in plain
 
 
 def test_enforce_citations_preserves_markdown_and_cites_tables():
-    evidence = [hit("LUB 更换周期为 4000 运行小时，耗材为 LUB-46。")]
+    evidence = [hit("FLT 更换周期为 4000 运行小时，耗材为 FLT-46。")]
     answer = (
         "## 保养周期\n\n"
-        "- **LUB 更换周期为 4000 运行小时**。\n"
-        "- 检查油位。\n\n"
-        "| 项目 | 周期 |\n|---|---|\n| LUB 更换 | 4000 h |\n| 油分芯 | 4000 h |\n\n"
+        "- **FLT 更换周期为 4000 运行小时**。\n"
+        "- 检查滤网状态。\n\n"
+        "| 项目 | 周期 |\n|---|---|\n| FLT 更换 | 4000 h |\n| 分离器滤芯 | 4000 h |\n\n"
         "公式 \\(E=mc^2\\)。\n"
     )
     cleaned, audit = citations.enforce_citations(answer, evidence)
     assert cleaned.startswith("## 保养周期")
-    assert "**LUB 更换周期为 4000 运行小时**[1]。" in cleaned
-    assert "| LUB 更换 | 4000 h [1]|" in cleaned
-    assert "| 油分芯 | 4000 h [1]|" in cleaned
+    assert "**FLT 更换周期为 4000 运行小时**[1]。" in cleaned
+    assert "| FLT 更换 | 4000 h [1]|" in cleaned
+    assert "| 分离器滤芯 | 4000 h [1]|" in cleaned
     assert "\\(E=mc^2\\)" in cleaned
     assert audit.coverage == 1.0 and audit.data_removed == 0
     assert audit.table_rows_cited == 2
 
 
 def test_enforce_citations_drops_unsupported_data_sentence():
-    evidence = [hit("LUB 更换周期为 4000 运行小时。")]
-    answer = "LUB 更换周期为 4000 运行小时。\n型号 ZZZ-99 的额定压力为 5 MPa。\n检查油位。"
+    evidence = [hit("FLT 更换周期为 4000 运行小时。")]
+    answer = "FLT 更换周期为 4000 运行小时。\n型号 ZZZ-99 的额定压力为 5 MPa。\n检查滤网状态。"
     cleaned, audit = citations.enforce_citations(answer, evidence)
     assert "4000 运行小时[1]。" in cleaned
     assert "ZZZ-99" not in cleaned
-    assert "检查油位。" in cleaned
+    assert "检查滤网状态。" in cleaned
     assert audit.data_removed == 1
 
 
 def test_enforce_citations_removes_invalid_numbers():
-    evidence = [hit("LUB 更换周期为 4000 小时。")]
+    evidence = [hit("FLT 更换周期为 4000 小时。")]
     cleaned, audit = citations.enforce_citations("周期为 4000 小时 [9]。", evidence)
     assert "[9]" not in cleaned
     assert audit.invalid_removed == 1
@@ -138,11 +138,11 @@ def test_structured_parse_build_and_serialize():
         {
             "index": 1,
             "docId": "d1",
-            "docName": "维保手册.md",
+            "docName": "维护手册.md",
             "section": "1. 保养周期",
             "page": 3,
             "locator": None,
-            "snippet": "LUB 更换周期为 4000 小时。",
+            "snippet": "FLT 更换周期为 4000 小时。",
         }
     ]
     payload = structured.build_payload(
@@ -260,14 +260,14 @@ def test_gateway_supports_numbered_model_profiles():
 
 
 def test_build_context_keeps_source_locator():
-    value = answerer.build_context([hit("LUB 更换周期为 4000 小时。")])
-    assert value.startswith("[1] 维保手册.md · 1. 保养周期")
+    value = answerer.build_context([hit("FLT 更换周期为 4000 小时。")])
+    assert value.startswith("[1] 维护手册.md · 1. 保养周期")
     assert "第3页" in value and "4000 小时" in value
 
 
 @pytest.mark.asyncio
 async def test_answerer_fallback_and_gateway_messages():
-    evidence = [hit("LUB 更换周期为 4000 小时。")]
+    evidence = [hit("FLT 更换周期为 4000 小时。")]
     chunks = [chunk async for chunk in answerer.stream_answer("周期是多少", evidence, None)]
     text = "".join(chunks)
     assert "4000 小时" in text and "[1]" in text

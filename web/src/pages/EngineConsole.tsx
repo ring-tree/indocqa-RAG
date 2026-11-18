@@ -142,9 +142,9 @@ export default function EngineConsole({ className = "" }: Props) {
       <div className="mx-auto max-w-4xl space-y-4">
         <header>
           <div className="ui-kicker">Engine Console · P2</div>
-          <h2 className="ui-brand-title mt-1">新引擎配置</h2>
+          <h2 className="ui-brand-title mt-1">控制面与构建编排</h2>
           <p className="mt-1 text-sm opacity-70">
-            仅使用 /api/v1 并行入口；旧问答与文档管理保持原状。
+            仅调用 /api/v1；问答与文档管理链路保持独立。
           </p>
         </header>
 

@@ -4,7 +4,7 @@
 
 - 在线调试：启动后端后访问 `http://127.0.0.1:8010/docs`（Swagger UI）
 - OpenAPI 契约：`http://127.0.0.1:8010/openapi.json`
-- 认证：本地部署默认不启用鉴权；如需公网访问，请在反向代理层增加认证与 HTTPS
+- 认证：本地部署默认不启用鉴权；`/api/v1` 可通过 `INDOCQA_AUTH_TOKEN` 启用静态 Bearer 鉴权（本机回环地址与 `/api/v1/health` 豁免），问答与知识运营链路（`/api`）仍建议在反向代理层增加认证与 HTTPS
 
 ## 目录
 
@@ -18,6 +18,7 @@
 - [8. 知识库：文档与移动](#8-知识库文档与移动)
 - [9. AI 分类](#9-ai-分类)
 - [10. 调用示例](#10-调用示例)
+- [11. 控制面与构建编排 `/api/v1`](#11-控制面与构建编排-apiv1)
 
 ---
 
@@ -71,6 +72,7 @@ FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `400
 | 40004 | 400 | 单条消息附件超过 10 个 | 减少附件数量 |
 | 40005 | 400 | 上传任务不存在、已过期或已完成 | 重新上传 |
 | 40006 | 400 | 分片序号、大小或文件总大小不合法 | 重新上传缺失分片 |
+| 40101 | 401 | `/api/v1` Bearer 鉴权失败（配置 `INDOCQA_AUTH_TOKEN` 后生效） | 设置正确的 `Authorization: Bearer <token>` 头 |
 | 40301 | 403 | 附件/会话无权访问 | 使用正确的 sessionId 或新建会话 |
 | 40401 | 404 | 知识库为空 | 先在文档管理页入库，或仅上传会话附件 |
 | 40402 | 404 | 文档/目录/入库任务不存在 | 刷新列表后重试 |
@@ -85,6 +87,7 @@ FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `400
 | 40405 | 404 | Build 不存在 | 刷新 Build 列表 |
 | 40905 | 409 | Build 状态冲突（如归档 Build 不可执行当前操作） | 查看 Build 状态后重试 |
 | 40906 | 409 | 索引命名空间与引擎/维度不兼容 | 重建 Build |
+| 40911 | 409 | Build 已阻断（无可用分块，不可激活/检索） | 检查入库失败原因后重建 Build |
 | 50004 | 500 | 索引适配器异常 | 检查 Chroma / BM25 |
 | 50005 | 500 | Build 失败 | 查看 Build 状态与日志 |
 | 50006 | 500 | 对象存储异常 | 检查对象存储目录与权限 |
@@ -147,6 +150,7 @@ FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `400
 | --- | --- | --- | --- |
 | `message` | string | 否 | 用户问题，0–2000 字符；与 `attachmentIds` 至少提供一个 |
 | `mode` | string | 是 | `kb` 知识库问答；`direct` 直接对话 |
+| `kbId` | string | 否 | 控制面知识库 ID；提供且该 KB 有 active Build 时按 `answer_backend` 使用构建链路检索 |
 | `sessionId` | string | 否 | 会话 ID；不传则自动新建 |
 | `attachmentIds` | string[] | 否 | 会话附件 ID，最多 10 个；需先调用 `/api/uploads/*` 完成上传 |
 | `profile` | string | 否 | 模型 profile ID；`auto`/不传为按主供应商→扩展供应商顺序 |
@@ -160,7 +164,7 @@ FastAPI/Pydantic 的请求体校验失败统一返回 HTTP 400 与错误码 `400
 ```bash
 curl -N http://127.0.0.1:8010/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"空压机报错 E-05 应该怎么处理？","mode":"kb"}'
+  -d '{"message":"退款一般多久到账？","mode":"kb"}'
 ```
 
 ### 4.1 事件流
@@ -240,13 +244,13 @@ curl -N http://127.0.0.1:8010/api/chat \
 请求：
 
 ```json
-{ "title": "空压机故障排查", "sessionId": "可选，32 位十六进制" }
+{ "title": "退款问题咨询", "sessionId": "可选，32 位十六进制" }
 ```
 
 响应：
 
 ```json
-{ "data": { "id": "9ed560d4...", "title": "空压机故障排查", "taskState": null, "createdAt": "2026-11-11T11:35:16", "updatedAt": "2026-11-11T11:35:16" } }
+{ "data": { "id": "9ed560d4...", "title": "退款问题咨询", "taskState": null, "createdAt": "2026-11-11T11:35:16", "updatedAt": "2026-11-11T11:35:16" } }
 ```
 
 ### 5.2 列表
@@ -256,12 +260,12 @@ curl -N http://127.0.0.1:8010/api/chat \
   "data": [
     {
       "id": "9ed560d4...",
-      "title": "空压机故障排查",
+      "title": "退款问题咨询",
       "taskState": { "status": "answering", "turn": 1 },
       "createdAt": "2026-11-11T11:35:16",
       "updatedAt": "2026-11-11T11:35:18",
       "messageCount": 2,
-      "lastMessage": "空压机报错 E-05 应该怎么处理？"
+      "lastMessage": "退款一般多久到账？"
     }
   ]
 }
@@ -366,10 +370,10 @@ DELETE /api/sessions/{id}
 {
   "data": {
     "docId": "683220dead04046d",
-    "filename": "螺杆式空压机操作手册.pdf",
+    "filename": "售后政策_退换货与退款.md",
     "pages": 48,
     "chunks": 106,
-    "folder": "设备手册/螺杆空压机",
+    "folder": "售后支持/退换货",
     "durationMs": 8200,
     "duplicated": false
   }
@@ -383,7 +387,7 @@ DELETE /api/sessions/{id}
 `POST /api/kb/ingest/jobs`（参数同上）
 
 ```json
-{ "data": { "jobId": "a1b2c3...", "totalDocs": 1, "folder": "设备手册/螺杆空压机" } }
+{ "data": { "jobId": "a1b2c3...", "totalDocs": 1, "folder": "售后支持/退换货" } }
 ```
 
 `GET /api/kb/ingest/jobs/{jobId}`：
@@ -451,8 +455,8 @@ DELETE /api/sessions/{id}
 ```json
 {
   "data": [
-    { "path": "设备手册", "name": "设备手册", "parent": "", "documentCount": 0, "chunkCount": 0 },
-    { "path": "设备手册/螺杆空压机", "name": "螺杆空压机", "parent": "设备手册", "documentCount": 1, "chunkCount": 106 }
+    { "path": "售后支持", "name": "售后支持", "parent": "", "documentCount": 0, "chunkCount": 0 },
+    { "path": "售后支持/退换货", "name": "退换货", "parent": "售后支持", "documentCount": 1, "chunkCount": 106 }
   ]
 }
 ```
@@ -462,7 +466,7 @@ DELETE /api/sessions/{id}
 `POST /api/kb/folders`
 
 ```json
-{ "path": "设备手册/新机组" }
+{ "path": "售后支持/新政策" }
 ```
 
 父级目录会自动创建。已有文档的目录下不能再建子目录。
@@ -472,14 +476,14 @@ DELETE /api/sessions/{id}
 `PATCH /api/kb/folders`
 
 ```json
-{ "from": "设备手册/旧名称", "to": "设备手册/新名称" }
+{ "from": "售后支持/旧名称", "to": "售后支持/新名称" }
 ```
 
 不能移动到自身子目录下。
 
 ### 7.4 删除目录
 
-`DELETE /api/kb/folders?path=设备手册/旧名称&mode=move`
+`DELETE /api/kb/folders?path=售后支持/旧名称&mode=move`
 
 | mode | 行为 |
 | --- | --- |
@@ -494,7 +498,7 @@ DELETE /api/sessions/{id}
 
 ### 8.1 文档列表
 
-`GET /api/kb/documents?folder=设备手册/螺杆空压机`
+`GET /api/kb/documents?folder=售后支持/退换货`
 
 `folder` 可选；不传返回全部。
 
@@ -503,8 +507,8 @@ DELETE /api/sessions/{id}
   "data": [
     {
       "docId": "7b079e032f68bcb3",
-      "filename": "螺杆式空压机操作手册_厂商公开.pdf",
-      "folder": "设备手册/螺杆空压机",
+      "filename": "售后政策_退换货与退款.md",
+      "folder": "售后支持/退换货",
       "chunks": 106,
       "pages": 48,
       "tables": 43,
@@ -519,11 +523,11 @@ DELETE /api/sessions/{id}
 `POST /api/kb/documents/{docId}/move`
 
 ```json
-{ "folder": "设备手册/无油空压机" }
+{ "folder": "售后支持/物流配送" }
 ```
 
 ```json
-{ "data": { "docId": "7b079...", "folder": "设备手册/无油空压机", "operationId": "mv_...", "skipped": false } }
+{ "data": { "docId": "7b079...", "folder": "售后支持/物流配送", "operationId": "mv_...", "skipped": false } }
 ```
 
 目标目录必须是末级目录；文档已在目标目录时 `skipped=true`。
@@ -533,14 +537,14 @@ DELETE /api/sessions/{id}
 `POST /api/kb/documents/batch-move`
 
 ```json
-{ "docIds": ["id1", "id2"], "folder": "设备手册/螺杆空压机" }
+{ "docIds": ["id1", "id2"], "folder": "售后支持/退换货" }
 ```
 
 ```json
 {
   "data": {
     "operationId": "mv_1762...",
-    "target": "设备手册/螺杆空压机",
+    "target": "售后支持/退换货",
     "moved": ["id1"],
     "skipped": ["id2"],
     "skippedDetails": [{ "docId": "id2", "reason": "已在目标目录" }],
@@ -596,7 +600,7 @@ DELETE /api/sessions/{id}
   "data": {
     "available": true,
     "candidates": [
-      { "path": "设备手册/螺杆空压机", "confidence": 0.86, "level": "high", "reason": "标题与目录语义匹配", "evidence": ["1. 可靠性指标"] }
+      { "path": "售后支持/退换货", "confidence": 0.86, "level": "high", "reason": "标题与目录语义匹配", "evidence": ["1. 可靠性指标"] }
     ],
     "suggested_new_folder": null,
     "fallback": false,
@@ -616,8 +620,8 @@ DELETE /api/sessions/{id}
 ```json
 {
   "docId": "683220dead04046d",
-  "suggested": "设备手册/螺杆空压机",
-  "chosen": "设备手册/无油空压机",
+  "suggested": "售后支持/退换货",
+  "chosen": "售后支持/物流配送",
   "action": "adjust",
   "source": "doc"
 }
@@ -636,13 +640,13 @@ BASE=http://127.0.0.1:8010
 
 # 1) 上传
 curl -X POST "$BASE/api/kb/ingest" \
-  -F "file=@./data/corpus/fixture_术语混写_模拟维保手册.md" \
+  -F "file=@./data/corpus/fixture_术语混写_示例手册.md" \
   -F "folder=评测夹具"
 
 # 2) 提问（流式）
 curl -N -X POST "$BASE/api/chat" \
   -H "Content-Type: application/json" \
-  -d '{"message":"MTBF 和平均无故障时间有什么区别？","mode":"kb","topK":6}'
+  -d '{"message":"退款和换货的区别是什么？","mode":"kb","topK":6}'
 
 # 3) 查看会话
 curl "$BASE/api/sessions"
@@ -656,7 +660,7 @@ import httpx
 with httpx.stream(
     "POST",
     "http://127.0.0.1:8010/api/chat",
-    json={"message": "空压机报错 E-05 应该怎么处理？", "mode": "kb"},
+    json={"message": "退款一般多久到账？", "mode": "kb"},
     timeout=120,
 ) as response:
     event = None
@@ -674,16 +678,16 @@ with httpx.stream(
 ```bash
 curl -N -X POST http://127.0.0.1:8010/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"储气罐的作用是什么？","mode":"kb","responseFormat":"json"}'
+  -d '{"message":"运费险的作用是什么？","mode":"kb","responseFormat":"json"}'
 ```
 
 拼接所有 `token.delta` 后 `json.loads` 即可得到完整结构化答案。
 
 ---
 
-## 11. 新引擎 `/api/v1`
+## 11. 控制面与构建编排 `/api/v1`
 
-新引擎与旧 `/api` 并行：旧链路行为、SSE 事件与错误码保持不变；`/api/v1` 提供控制面、Domain Pack、Build 与检索能力。所有 `/api/v1` 响应带 `X-API-Version: 1`。
+本链路独立于问答与知识运营链路（`/api`）：后者行为、SSE 事件与错误码保持不变；`/api/v1` 提供控制面、Domain Pack、Build 与检索能力。所有 `/api/v1` 响应带 `X-API-Version: 1`。
 
 ### 11.1 错误包
 
@@ -708,7 +712,7 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 | --- | --- | --- |
 | GET | `/api/v1/health` | 引擎健康、KB 文档/块数 |
 | GET | `/api/v1/models` | 输出层模型列表 |
-| GET | `/api/v1/ui-profile` | 当前进程 Domain Pack 的副标题/示例/目录示例 |
+| GET | `/api/v1/ui-profile` | 当前进程 Pack 的副标题/示例；`?kbId=` 时按 KB 绑定 Pack 返回 |
 | GET | `/api/v1/embedding-models` | 嵌入模型注册表 |
 | GET | `/api/v1/config/schemas` | 五份配置 Schema 列表 |
 | GET | `/api/v1/config/schemas/{scope}` | 单份 Schema（engine/kb/answer/ui/pack） |
@@ -726,18 +730,21 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 | POST | `/api/v1/kbs/{kb}/pack` | 绑定 Pack（一 KB 一主 Pack） |
 | GET | `/api/v1/kbs/{kb}/pack` | 查询绑定 |
 | DELETE | `/api/v1/kbs/{kb}/pack` | 解绑 |
-| POST | `/api/v1/kbs/{kb}/builds` | 创建 Build（202，返回 `buildId/statusUrl`） |
+| POST | `/api/v1/kbs/{kb}/builds` | 创建 Build（202）；可选 `embeddingModel`（Build 级同维度模型）、`corpusDir` 自动入库、`activate` 激活；返回 `health` 与 `stats` |
 | GET | `/api/v1/builds/{build}` | Build 状态、健康、stats |
 | POST | `/api/v1/builds/{build}/activate` | 激活；归档 Build 也可激活（回滚） |
 | POST | `/api/v1/kbs/{kb}/rollback` | 回滚到指定 `buildId` |
 | POST | `/api/v1/builds/{build}/reconcile` | 控制面/向量/关键词对账 |
 | POST | `/api/v1/kbs/{kb}/documents` | 注册文档（内容哈希幂等） |
+| POST | `/api/v1/kbs/{kb}/documents/ingest` | 向 active Build 增量入库单个文件（multipart，≤20 MB，自动递增 `corpusRevision`） |
+| POST | `/api/v1/kbs/{kb}/documents/{doc}/replace` | 替换文档并重建其分块（保留撤销快照） |
+| POST | `/api/v1/kbs/{kb}/documents/{doc}/undo` | 撤销最近一次替换 |
 | POST | `/api/v1/builds/{build}/chunks` | 写入分块并索引 |
 | POST | `/api/v1/search` | Build/KB 级检索 |
 
 ### 11.3 SSE
 
-新引擎暂不新增 SSE 事件；问答仍走 `POST /api/chat`，事件顺序与字段见第 4 节：`trace*` → `context?` → `sources?` → `token*` → `done`，异常以 `error` 收尾。
+构建链路暂不新增 SSE 事件；问答仍走 `POST /api/chat`，事件顺序与字段见第 4 节：`trace*` → `context?` → `sources?` → `token*` → `done`，异常以 `error` 收尾。
 
 ### 11.4 CLI
 
@@ -746,5 +753,9 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 ### 11.5 边界
 
 - 一个进程只装配一套引擎适配器，单 worker 约束不变；
-- `/api/v1` 的 Build 激活尚未驱动旧 `/api/chat`（ISSUE-20261118-06）；
-- `ui-profile` 为进程级（ISSUE-20261118-05）。
+- `answer_backend=auto` 时，只有请求带 `kbId` 且该 KB 有 active Build 才走构建链路；否则保持问答链路检索；
+- `engine` 后端使用 Build 级基础混合检索，不含问答链路的意图路由、多跳与术语扩展；构建链路检索失败时自动回退问答链路；
+- `ui-profile` 支持 `kbId` 按 KB 返回；不传时保持进程级默认；
+- 增量入库、替换与撤销仅允许作用于 **active Build**，其他状态返回 `40905`；
+- Build 在入库后没有任何可用分块时置为 `blocked`（`health=blocked`），激活与检索返回 `40911`；部分文件失败时保持 `ready`、`health=warning`，并在 `stats.failed` 中记录原因；
+- 配置 `INDOCQA_AUTH_TOKEN` 后，`/api/v1`（除 `/api/v1/health`）要求 `Authorization: Bearer <token>`，本机回环地址豁免；鉴权失败返回 `40101`。

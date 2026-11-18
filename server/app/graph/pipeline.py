@@ -18,6 +18,7 @@ from app.context.schema import ContextBundle, TaskState
 from app.core.config import get_settings
 from app.core.exceptions import UpstreamError
 from app.core.llm import LLMGateway
+from app.engine.retrieval_bridge import retrieve_from_engine
 from app.generation import citations, formatting, safety, structured
 from app.generation.answerer import REFUSAL_TEMPLATE, stream_answer
 from app.graph.graph import run_retrieval
@@ -293,6 +294,7 @@ async def chat_stream(
     folders: list[str] | None = None,
     response_format: str = "text",
     attachments: list[dict] | None = None,
+    kb_id: str | None = None,
 ) -> AsyncIterator[dict]:
     settings = settings or get_settings()
     gateway = LLMGateway(settings, profile)
@@ -469,28 +471,66 @@ async def chat_stream(
         }
         return
 
-    try:
-        retrieval = await asyncio.wait_for(
-            run_retrieval(
-                retrieval_query,
-                settings.retrieval_mode,
-                settings,
-                top_k,
-                folder=folder,
-                folders=folders,
-            ),
-            timeout=float(getattr(settings, "retrieval_timeout", 45.0)),
-        )
-    except TimeoutError:
-        timeout = getattr(settings, "retrieval_timeout", 45.0)
-        yield {
-            "event": "error",
-            "data": {
-                "code": 42901,
-                "message": f"检索服务超时（{timeout:g} 秒），请稍后重试",
-            },
-        }
-        return
+    retrieval = None
+    engine_error = None
+    backend = getattr(settings, "answer_backend", "auto")
+    engine_kb = kb_id or getattr(settings, "legacy_kb", "kb_default")
+    if backend in {"auto", "engine"} and (kb_id or backend == "engine"):
+        try:
+            retrieval = await asyncio.wait_for(
+                asyncio.to_thread(
+                    retrieve_from_engine,
+                    retrieval_query,
+                    settings,
+                    engine_kb,
+                    top_k,
+                    folder,
+                    folders,
+                ),
+                timeout=float(getattr(settings, "retrieval_timeout", 45.0)),
+            )
+        except LookupError as exc:
+            engine_error = str(exc)
+        except TimeoutError:
+            timeout = getattr(settings, "retrieval_timeout", 45.0)
+            yield {
+                "event": "error",
+                "data": {
+                    "code": 42901,
+                    "message": f"检索服务超时（{timeout:g} 秒），请稍后重试",
+                },
+            }
+            return
+        except Exception as exc:  # noqa: BLE001 构建链路检索失败，回退问答链路
+            engine_error = f"{type(exc).__name__}: {exc}"
+
+    if retrieval is None:
+        try:
+            retrieval = await asyncio.wait_for(
+                run_retrieval(
+                    retrieval_query,
+                    settings.retrieval_mode,
+                    settings,
+                    top_k,
+                    folder=folder,
+                    folders=folders,
+                ),
+                timeout=float(getattr(settings, "retrieval_timeout", 45.0)),
+            )
+        except TimeoutError:
+            timeout = getattr(settings, "retrieval_timeout", 45.0)
+            yield {
+                "event": "error",
+                "data": {
+                    "code": 42901,
+                    "message": f"检索服务超时（{timeout:g} 秒），请稍后重试",
+                },
+            }
+            return
+        if engine_error and backend == "engine":
+            retrieval["trace"].insert(
+                0, {"stage": "engine", "result": f"回退问答链路（{engine_error}）"}
+            )
     attachment_hits = (
         attachment_context.build_hits(current_attachments, retrieval_query, settings)
         if current_attachments
@@ -526,6 +566,8 @@ async def chat_stream(
     hits, safety_dropped, safety_redacted = _sanitize_hits(retrieval["hits"], guard)
     retrieval["hits"] = hits
     scope = _scope(settings, folder, folders)
+    if retrieval.get("plan", {}).get("strategy") == "engine":
+        scope = [hit.doc_name for hit in hits if hit.doc_name][:10]
     if current_attachments:
         scope = [*scope, *[item["filename"] for item in current_attachments[:3]]]
     if safety_dropped or safety_redacted:

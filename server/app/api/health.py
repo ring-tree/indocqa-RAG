@@ -19,7 +19,7 @@ def health() -> HealthResponse:
     state = "ready" if chunks > 0 else ("empty" if docs > 0 else "not_indexed")
     backend_id = backend_id_for(settings)
     if backend_id.startswith("ollama-"):
-        model = settings.ollama_embed_model
+        model = settings.embed_ollama_model
     elif backend_id.startswith("fe-"):
         model = settings.embed_local_model
     else:

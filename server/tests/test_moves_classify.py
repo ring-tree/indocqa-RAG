@@ -16,17 +16,13 @@ from app.indexing.preview import preview_document
 from app.main import create_app
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
-SEED = pathlib.Path(__file__).resolve().parents[2] / "data" / "terms" / "seed.json"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 @pytest.fixture()
 def tmp_settings(tmp_path, monkeypatch):
-    import shutil
-
     terms = tmp_path / "terms"
     terms.mkdir()
-    shutil.copy(SEED, terms / "seed.json")
     monkeypatch.setenv("INDOCQA_CHROMA_DIR", str(tmp_path / "chroma"))
     monkeypatch.setenv("INDOCQA_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("INDOCQA_SESSION_DB", str(tmp_path / "sessions.db"))
@@ -45,26 +41,26 @@ def _md(path: pathlib.Path, title: str, body: str) -> pathlib.Path:
 
 
 def _two_docs(settings, tmp_path):
-    a = _md(tmp_path / "a.md", "螺杆机维护", "LUB 更换周期 4000 小时。")
+    a = _md(tmp_path / "a.md", "智能网关维护", "FLT 更换周期 4000 小时。")
     b = _md(tmp_path / "b.md", "可靠性指标", "MTBF 8000 小时。")
-    first = ingest_file(a, settings, folder="设备手册/螺杆空压机")
+    first = ingest_file(a, settings, folder="售后支持/退换货")
     second = ingest_file(b, settings, folder="评测夹具")
     return first["docId"], second["docId"]
 
 
 def test_batch_move_and_undo(tmp_settings, tmp_path):
     first, second = _two_docs(tmp_settings, tmp_path)
-    result = batch_move(tmp_settings, [first, second], "行业标准/压缩空气系统")
+    result = batch_move(tmp_settings, [first, second], "物流配送/转运中心")
     assert sorted(result["moved"]) == sorted([first, second])
     assert result["operationId"]
     manifest = Manifest(Manifest.path_for(tmp_settings))
-    assert manifest.get(first)["folder"] == "行业标准/压缩空气系统"
-    assert manifest.get(second)["folder"] == "行业标准/压缩空气系统"
+    assert manifest.get(first)["folder"] == "物流配送/转运中心"
+    assert manifest.get(second)["folder"] == "物流配送/转运中心"
 
     undo = undo_move(tmp_settings, result["operationId"])
     assert sorted(undo["restored"]) == sorted([first, second])
     manifest = Manifest(Manifest.path_for(tmp_settings))
-    assert manifest.get(first)["folder"] == "设备手册/螺杆空压机"
+    assert manifest.get(first)["folder"] == "售后支持/退换货"
     assert manifest.get(second)["folder"] == "评测夹具"
 
     with pytest.raises(ParamError):
@@ -73,7 +69,7 @@ def test_batch_move_and_undo(tmp_settings, tmp_path):
 
 def test_batch_move_skips_same_folder_and_reports_missing(tmp_settings, tmp_path):
     first, _ = _two_docs(tmp_settings, tmp_path)
-    result = batch_move(tmp_settings, [first, "missing"], "设备手册/螺杆空压机")
+    result = batch_move(tmp_settings, [first, "missing"], "售后支持/退换货")
     assert result["skipped"] == [first]
     assert result["failed"][0]["docId"] == "missing"
     assert result["operationId"] is None
@@ -84,7 +80,7 @@ def test_move_api_creates_undo_entry(tmp_settings, tmp_path):
     client = TestClient(create_app())
     response = client.post(
         "/api/kb/documents/batch-move",
-        json={"docIds": [first], "folder": "行业标准/压缩空气系统"},
+        json={"docIds": [first], "folder": "物流配送/转运中心"},
     )
     assert response.status_code == 200
     operation_id = response.json()["data"]["operationId"]
@@ -107,7 +103,7 @@ def test_classify_gate_without_model(tmp_settings, monkeypatch):
 
     with pytest.raises(AIUnavailableError):
         __import__("asyncio").run(
-            classify_service.classify_text(fresh, "a.pdf", "螺杆空压机维护手册")
+            classify_service.classify_text(fresh, "a.pdf", "智能网关维护手册")
         )
 
     client = TestClient(create_app())
@@ -130,14 +126,14 @@ def test_preview_classification_reports_unavailable_without_model(tmp_settings, 
     assert report["classification"]["reason"] == "no_model"
 
 
-def test_rule_candidates_prefer_matching_folder(industrial_pack, tmp_settings):
+def test_rule_candidates_prefer_matching_folder(domain_pack, tmp_settings):
     candidates = classify_service._build_candidates(
-        ["设备手册/螺杆空压机", "行业标准/压缩空气系统", "评测夹具"],
-        "螺杆式空压机操作手册.pdf",
-        "螺杆压缩机维护与保养",
+        ["售后支持/退换货", "物流配送/发货与签收", "评测夹具"],
+        "退款政策说明.pdf",
+        "退款与换货政策说明",
         {},
         {},
     )
-    assert candidates[0]["path"] == "设备手册/螺杆空压机"
+    assert candidates[0]["path"] == "售后支持/退换货"
     assert candidates[0]["confidence"] >= 0.9
     assert "分类规则" in candidates[0]["reason"]

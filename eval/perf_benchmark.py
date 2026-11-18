@@ -4,7 +4,7 @@
     uv run --project server --with matplotlib --with psutil python eval/perf_benchmark.py
 
 说明：
-- 检索质量直接调用进程内 run_retrieval（只读 Chroma，不写入），使用 eval/dataset.jsonl 40 题标注集；
+- 检索质量直接调用进程内 run_retrieval（只读 Chroma，不写入），使用 eval/dataset-support.jsonl 标注集；
 - 入库/问答走真实 HTTP API，入库文档在测试结束后自动删除；
 - 问答并发测试会创建临时会话并在结束后删除；
 - 输出：docs/performance/data/*.json|csv、docs/performance/charts/*.png|svg、docs/performance/性能测试报告.md
@@ -31,7 +31,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
-DATASET = ROOT / "eval" / "dataset.jsonl"
+DATASET = ROOT / "eval" / "dataset-support.jsonl"
 DEFAULT_OUT = ROOT / "docs" / "performance"
 BRAND = "#0f9d94"
 DARK = "#0f172a"
@@ -161,7 +161,7 @@ async def run_retrieval_quality(
     results: dict[str, dict] = {}
     # 预热，排除首次模型/图编译开销
     set_retrieval_mode("adaptive")
-    await run_retrieval("空压机的作用是什么？", "adaptive")
+    await run_retrieval("退款一般多久到账？", "adaptive")
 
     for mode in modes:
         set_retrieval_mode(mode)
@@ -326,18 +326,18 @@ async def chat_once(client: httpx.AsyncClient, case: dict, profile: str | None) 
 
 def make_markdown(target_chars: int, seed: str, index: int) -> str:
     topics = [
-        ("设备概述", "本机组为双螺杆空气压缩机，额定排气压力 0.8 MPa，配套高效永磁电机。"),
-        ("安装要求", "机组应安装在通风良好、环境温度 5–40℃ 的场所，基础水平度误差不超过 2 mm/m。"),
+        ("设备概述", "本设备为智能网关，额定输入 220 V，配套双频无线模块。"),
+        ("安装要求", "设备应安装在通风良好、环境温度 5–40℃ 的场所，基础水平度误差不超过 2 mm/m。"),
         (
             "运行参数",
-            "排气温度正常范围 75–95℃，油位应处于视油镜绿色区域，冷却水进出口温差不超过 8℃。",
+            "设备温度正常范围 5–45℃，滤网状态应处于正常区域，电源波动不超过额定值 ±10%。",
         ),
         (
             "维护保养",
-            "每 2000 小时更换空气过滤器滤芯，每 4000 小时更换润滑油，每 500 小时检查皮带张紧度。",
+            "每 2000 小时更换滤网滤芯，每 4000 小时更换滤芯，每 500 小时检查风扇固定。",
         ),
-        ("故障处理", "出现 E-05 报警时应立即停机，检查油位、清理油冷器翅片并复位重启。"),
-        ("安全规范", "检修前必须切断主电源并挂牌上锁，等待系统完全泄压后方可拆卸管路。"),
+        ("故障处理", "出现 E-05 报警时应立即停机，检查滤网状态、清理散热器翅片并复位重启。"),
+        ("安全规范", "检修前必须切断主电源并挂牌上锁，等待设备完全断电后方可拆卸外壳。"),
     ]
     lines = [
         f"# 性能基准测试文档 {index}（{seed}）",
@@ -358,9 +358,9 @@ def make_markdown(target_chars: int, seed: str, index: int) -> str:
                 [
                     "| 项目 | 周期 | 耗材型号 |",
                     "| --- | --- | --- |",
-                    "| 空气过滤器 | 2000 h | AF-4612 |",
-                    "| 润滑油 | 4000 h | LUB-46 |",
-                    "| 油分芯 | 8000 h | OS-4612 |",
+                    "| 滤网滤芯 | 2000 h | AF-4612 |",
+                    "| 滤芯 | 4000 h | FLT-46 |",
+                    "| 分离器滤芯 | 8000 h | OS-4612 |",
                     "",
                 ]
             )
@@ -386,9 +386,10 @@ async def post_multipart(
 
 
 CORPUS_FOLDERS = {
-    "compressed_air_sourcebook": "行业标准/压缩空气系统",
-    "螺杆式空压机": "设备手册/螺杆空压机",
-    "无油静音": "设备手册/无油空压机",
+    "保修服务": "售后/保修",
+    "售后政策": "售后/退换货",
+    "物流配送": "物流/配送",
+    "账户会员": "账户/会员",
     "fixture_": "评测夹具",
 }
 CORPUS_SUFFIXES = {".pdf", ".md", ".txt", ".docx"}
@@ -659,7 +660,7 @@ def render_charts(
         ax.set_xticklabels(labels)
         ax.set_ylim(0, 112)
         ax.set_ylabel("百分比 / 比率（%）")
-        ax.set_title("检索质量对比（40 题标注集）", fontsize=12, color=DARK, pad=12)
+        ax.set_title("检索质量对比（标注集）", fontsize=12, color=DARK, pad=12)
         ax.legend(
             frameon=False,
             loc="upper center",
@@ -853,7 +854,7 @@ def render_report(
         ),
         f"- 嵌入后端：`{env['embedding'].get('backend')}` / `{env['embedding'].get('model')}`",
         f"- 生成模型（配置主模型）：`{env.get('llm_model', '-')}`（流式）",
-        "- 数据集：`eval/dataset.jsonl` 40 题（术语 7 / 参数 7 / 步骤 7 / 故障 8 / 多跳 11）",
+        "- 数据集：`eval/dataset-support.jsonl` 客服 FAQ 标注集",
     ]
     if env.get("corpus", {}).get("uploaded"):
         lines.append(f"- 语料补充：评测前自动补入 {len(env['corpus']['uploaded'])} 份内置文档")
@@ -1110,7 +1111,7 @@ def render_report(
         "## 六、测试方法",
         "",
         (
-            "1. **检索质量**：对 40 题标注集逐题调用进程内 `run_retrieval`，比较固定参数与自适应路由；"
+            "1. **检索质量**：对标注集逐题调用进程内 `run_retrieval`，比较固定参数与自适应路由；"
             "Hit@k 表示前 k 个命中块中出现标注来源文档，Recall@5 按题目的多个期望来源取平均，"
             "MRR 取首个相关来源排名的倒数，答案要点覆盖率以检索摘录中命中的标注要点计算。"
         ),
@@ -1254,7 +1255,7 @@ async def main() -> int:
 
         retrieval: dict = {}
         if not args.skip_retrieval:
-            print("[1/4] 检索质量评测（40 题 × fixed/adaptive）...")
+            print("[1/4] 检索质量评测（标注集 × fixed/adaptive）...")
             retrieval = await run_retrieval_quality(cases)
             json_dump(data_dir / "retrieval_quality.json", retrieval)
             for mode, payload in retrieval.items():

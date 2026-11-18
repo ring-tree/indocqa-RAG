@@ -21,20 +21,20 @@ def test_search_filter_delete_and_persist(adapter, namespace):
     adapter.upsert(
         namespace,
         [
-            KeywordRecord("c1", "空压机故障代码 E-05 处理方法", {"doc_id": "d1"}),
-            KeywordRecord("c2", "储气罐压力与容量说明", {"doc_id": "d2"}),
+            KeywordRecord("c1", "智能网关故障代码 E-05 处理方法", {"doc_id": "d1"}),
+            KeywordRecord("c2", "缓存模块容量说明", {"doc_id": "d2"}),
         ],
     )
 
-    hits = adapter.search(namespace, "空压机 故障", 2)
+    hits = adapter.search(namespace, "智能网关 故障", 2)
     assert hits
     assert hits[0].chunk_id == "c1"
 
-    filtered = adapter.search(namespace, "空压机 故障", 2, Filters(doc_ids=("d2",)))
+    filtered = adapter.search(namespace, "智能网关 故障", 2, Filters(doc_ids=("d2",)))
     assert filtered == []
 
     reloaded = Bm25KeywordAdapter(adapter.root)
-    assert reloaded.search(namespace, "空压机", 2)[0].chunk_id == "c1"
+    assert reloaded.search(namespace, "智能网关", 2)[0].chunk_id == "c1"
 
     adapter.delete(namespace, ["c1"])
     assert adapter.stats(namespace).count == 1
@@ -43,7 +43,7 @@ def test_search_filter_delete_and_persist(adapter, namespace):
 
 def test_drop_removes_namespace(adapter, namespace):
     adapter.ensure_namespace(namespace, "zh-CN")
-    adapter.upsert(namespace, [KeywordRecord("c1", "空压机", {"doc_id": "d1"})])
+    adapter.upsert(namespace, [KeywordRecord("c1", "智能网关", {"doc_id": "d1"})])
     adapter.drop(namespace)
     assert adapter.stats(namespace).count == 0
-    assert adapter.search(namespace, "空压机", 1) == []
+    assert adapter.search(namespace, "智能网关", 1) == []

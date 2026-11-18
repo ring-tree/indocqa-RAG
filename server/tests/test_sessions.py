@@ -1,8 +1,7 @@
-"""会话：SQLite 存储、上下文装配、API 隔离与删除（工业语料）。"""
+"""会话：SQLite 存储、上下文装配、API 隔离与删除（中立语料）。"""
 
 import json
 import pathlib
-import shutil
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +14,7 @@ from app.main import create_app
 from app.session import store as session_store
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 def _parse_sse(text: str) -> list[dict]:
@@ -34,10 +33,8 @@ def _parse_sse(text: str) -> list[dict]:
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    seed = pathlib.Path(__file__).resolve().parents[2] / "data" / "terms" / "seed.json"
     terms_dir = tmp_path / "terms"
     terms_dir.mkdir()
-    shutil.copy(seed, terms_dir / "seed.json")
     monkeypatch.setenv("INDOCQA_CHROMA_DIR", str(tmp_path / "chroma"))
     monkeypatch.setenv("INDOCQA_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("INDOCQA_SESSION_DB", str(tmp_path / "sessions.db"))
@@ -52,10 +49,10 @@ def client(tmp_path, monkeypatch):
 
 
 def test_context_query_prepends_previous_question():
-    history = [{"role": "user", "content": "LUB 更换的保养周期是多少小时？"}]
-    assert _context_query("它的周期呢？", history).startswith("LUB")
-    assert _context_query("空压机保养周期表包含哪些项目", history) == (
-        "空压机保养周期表包含哪些项目"
+    history = [{"role": "user", "content": "FLT 更换的保养周期是多少小时？"}]
+    assert _context_query("它的周期呢？", history).startswith("FLT")
+    assert _context_query("智能网关保养周期表包含哪些项目", history) == (
+        "智能网关保养周期表包含哪些项目"
     )
 
 
@@ -79,14 +76,14 @@ def test_chat_persists_and_isolates_sessions(client):
     sid1 = "szccfsession001"
     r1 = client.post(
         "/api/chat",
-        json={"message": "LUB 更换的保养周期是多少小时？", "mode": "kb", "sessionId": sid1},
+        json={"message": "FLT 更换的保养周期是多少小时？", "mode": "kb", "sessionId": sid1},
     )
     done1 = next(e for e in _parse_sse(r1.text) if e["event"] == "done")["data"]
     assert done1["sessionId"] == sid1 and done1["messageId"]
 
     client.post(
         "/api/chat",
-        json={"message": "那空气过滤器滤芯呢？", "mode": "kb", "sessionId": sid1},
+        json={"message": "那滤网滤芯呢？", "mode": "kb", "sessionId": sid1},
     )
     s1 = client.get(f"/api/sessions/{sid1}").json()["data"]
     assert len(s1["messages"]) == 4

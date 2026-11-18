@@ -1,14 +1,14 @@
-# 迁移指南：旧库 → 新架构
+# 迁移指南：问答单链路部署 → 控制面 + Build 架构
 
-> 适用范围：从旧 `/api` 单链路升级到「控制面 + Build 命名空间 + Domain Pack」的新引擎架构。
-> 原则：旧链路可继续服务；新引擎并行上线；任何一步失败都能回滚。
+> 适用范围：从仅使用问答与知识运营链路（`/api`）的部署，升级到「控制面 + Build 命名空间 + Domain Pack」的构建编排架构。
+> 原则：问答与知识运营链路可继续服务；控制面与构建编排链路上线并行；任何一步失败都能回滚。
 
 ## 1. 迁移前检查
 
 | 项 | 命令 / 位置 | 通过标准 |
 | --- | --- | --- |
 | 代码版本 | `git rev-parse --short HEAD` | 记录当前版本，便于回滚 |
-| 旧链路健康 | `GET /api/health` | 200 且 `kb.state=ready` |
+| 问答链路健康 | `GET /api/health` | 200 且 `kb.state=ready` |
 | 会话与附件 | `server/data/db`、`server/data/attachments` | 已确认保留策略 |
 | 环境变量 | `server/.env` | 生成模型、嵌入后端可用 |
 | 磁盘空间 | 备份 + 新索引 | 至少 2 倍当前 `server/data` 大小 |
@@ -48,12 +48,12 @@ uv sync --frozen --extra dev
 uv run pytest -q
 ```
 
-控制面 SQLite 的 schema 迁移在 `ControlPlane` 初始化时自动执行（`PRAGMA user_version`）；旧链路索引与 `data/terms` 不需要转换。
+控制面 SQLite 的 schema 迁移在 `ControlPlane` 初始化时自动执行（`PRAGMA user_version`）；问答链路的索引与 `data/terms` 不需要转换。
 
-## 4. 新引擎并行上线
+## 4. 构建编排链路并行上线
 
 1. 选择 Domain Pack：`server/packs/<id>/<version>/`；
-2. 初始化新引擎项目（独立数据目录）：
+2. 初始化构建编排项目（独立数据目录）：
 
    ```bash
    cd server
@@ -61,7 +61,7 @@ uv run pytest -q
      --name "生产知识库" --pack <pack-id>@<version>
    ```
 
-3. 把语料放入 `deploy/demo/data/corpus`；
+3. 把语料放入 `deploy/app/data/corpus`；
 4. 校验并构建：
 
    ```bash
@@ -77,7 +77,9 @@ uv run pytest -q
 
 6. 启动后端并验证 `/api/v1/health`、`/api/v1/kbs`、`/api/v1/packs`。
 
-> 旧链路的 Chroma 索引不会自动转换为 Build 命名空间。新引擎按 Build 重新入库，这是保证「历史 Build 可复现」的设计选择。
+7. 如需让 `POST /api/chat` 直接使用 Build 级检索，在请求中带 `kbId`，并保持 `INDOCQA_ANSWER_BACKEND=auto`（默认）；该 KB 有 active Build 时自动走 Build 检索，否则回退问答链路。
+
+> 问答链路的 Chroma 索引不会自动转换为 Build 命名空间。构建链路按 Build 重新入库，这是保证「历史 Build 可复现」的设计选择。
 
 ## 5. 验证清单
 
@@ -114,7 +116,10 @@ curl -X POST http://127.0.0.1:8010/api/v1/kbs/<kb>/rollback \
 
 ## 7. 已知限制
 
-- 旧链路一个进程只能启用一个 Pack（ISSUE-20261118-05）；
-- 控制面 Build 尚未驱动旧问答链路（ISSUE-20261118-06）；
-- Pack 术语升级不会自动刷新已有 KB 的术语缓存（ISSUE-20261118-07）；
-- 新引擎与旧链路共享单 worker 约束，不支持多进程写入。
+- 两条链路共享单 worker 约束，不支持多进程写入（`ISSUE-B04`）；
+- `engine` 后端使用 Build 级基础混合检索，不含问答链路的意图路由、多跳与术语扩展；默认 `auto` 仅在有 `kbId` 且 KB 有 active Build 时启用；
+- Pack 术语升级会自动失效缓存，并在重建前清除 BM25 旧标签；升级后首次查询可能有一次性重建开销；
+- 首 Token 延迟仍受上游模型与现有生成链路影响（`ISSUE-B05`），多跳题覆盖有限（`ISSUE-B06`）；
+- Build 级嵌入模型仅支持与部署维度一致的模型（默认 1024 维），不支持跨维度混用；切换模型需重建 Build 索引；
+- 增量入库、替换与撤销仅作用于 active Build；零可用分块的 Build 会被置为 `blocked`，部分文件失败时为 `ready + warning`，需查看 `stats.failed`；
+- `/api/v1` 的静态 Bearer 鉴权为单 token，适合单租户部署；多租户与细粒度权限仍需外部网关。

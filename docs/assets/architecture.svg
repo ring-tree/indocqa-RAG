@@ -29,7 +29,7 @@
   <rect class="canvas" x="0" y="0" width="1280" height="840"/>
 
   <text class="title" x="48" y="58">工阅 IndocQA · 自适应检索问答系统架构</text>
-  <text class="subtitle" x="48" y="84">面向工业技术文档：检索策略随问题类型自动切换，回答可溯源、可解释、可复现</text>
+  <text class="subtitle" x="48" y="84">面向企业知识库：检索策略随问题类型自动切换，回答可溯源、可解释、可复现</text>
 
   <!-- 用户层 -->
   <text class="layer-label" x="48" y="122">用户层 / WEB</text>
@@ -138,5 +138,5 @@
   <path class="flow-soft" d="M 640 634 L 640 686" marker-end="url(#arrow-soft)"/>
   <path class="flow-soft" d="M 1024 634 L 1024 686" marker-end="url(#arrow-soft)"/>
 
-  <text class="footer" x="48" y="802">实线：请求链路（用户 → API → 检索 → 上下文 → 生成 → SSE 返回）　虚线：数据与模型依赖　·　指标与复现方式见 docs/performance/</text>
+  <text class="footer" x="48" y="802">实线：请求链路（用户 → API → 检索 → 上下文 → 生成 → SSE 返回）　虚线：数据与模型依赖</text>
 </svg>

@@ -7,7 +7,7 @@ from app.parsing.loader import load_document
 from app.parsing.models import RawTable
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 def _load_fixture():
@@ -29,7 +29,7 @@ def test_table_chunk_independent_and_serialized():
     tables = [c for c in children if c.kind == "table"]
     assert tables, "表格未成为独立子块"
     joined = "\n".join(t.text for t in tables)
-    assert "LUB 更换（机油）" in joined and "4000 h" in joined
+    assert "FLT 更换（滤芯）" in joined and "4000 h" in joined
     assert all(len(t.text) < 4000 for t in tables)
 
 
@@ -58,17 +58,24 @@ def test_numbered_list_not_cut_mid_item():
 
 
 def test_serialize_table_format():
-    table = RawTable(rows=[["代码", "含义"], ["E-05", "排气温度过高"]], table_no="表 2-1")
+    table = RawTable(rows=[["代码", "含义"], ["E-05", "设备温度过高"]], table_no="表 2-1")
     text = serialize_table(table)
     assert text.startswith("【表 2-1 表格】")
-    assert "代码=E-05" in text and "含义=排气温度过高" in text
+    assert "代码=E-05" in text and "含义=设备温度过高" in text
 
 
-def test_pdf_loads_with_pages():
-    pdf = CORPUS / "无油静音空压机操作说明_厂商公开.pdf"
-    if not pdf.exists():
-        return
+def test_pdf_loads_with_pages(tmp_path):
+    import pymupdf
+
+    pdf = tmp_path / "智能网关维护说明.pdf"
+    document = pymupdf.open()
+    for page_no in range(2):
+        page = document.new_page()
+        page.insert_text((72, 72), f"GW-50 智能网关维护说明第 {page_no + 1} 页")
+    document.save(pdf)
+    document.close()
+
     doc = load_document(pdf)
-    assert doc.pages == 10
+    assert doc.pages == 2
     assert doc.paragraphs, "PDF 段落提取为空"
     assert all(p.page is not None for p in doc.paragraphs)

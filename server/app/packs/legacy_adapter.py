@@ -1,4 +1,4 @@
-"""把 Domain Pack 转为旧链路的运行期覆盖配置。"""
+"""把 Domain Pack 转为问答链路的运行期覆盖配置。"""
 
 from __future__ import annotations
 
@@ -7,19 +7,22 @@ from app.core.runtime_overrides import RuntimeOverrides, set_overrides
 
 
 def enable_legacy_pack(pack_ref: str, packs_dir: str, engine_version: str) -> str:
-    """加载并启用旧链路的 Domain Pack（`id@version`），返回实际生效版本。"""
+    """加载并启用问答链路的 Domain Pack（`id@version`），返回实际生效版本。"""
     from app.packs.loader import PackLoader
 
     pack_id, _, version = pack_ref.partition("@")
     loaded = PackLoader(packs_dir, engine_version=engine_version).load(
         pack_id, version or "1.0.0"
     )
-    set_overrides(overrides_from_pack(loaded.pack))
+    set_overrides(overrides_from_pack(loaded.pack, content_hash=loaded.content_hash))
     return f"{loaded.pack.manifest.id}@{loaded.pack.manifest.version}"
 
 
-def overrides_from_pack(pack: DomainPack) -> RuntimeOverrides:
+def overrides_from_pack(pack: DomainPack, *, content_hash: str = "") -> RuntimeOverrides:
     return RuntimeOverrides(
+        pack_id=pack.manifest.id,
+        pack_version=pack.manifest.version,
+        pack_hash=content_hash,
         intent_keywords={
             key: list(values) for key, values in pack.intent.keywords.items()
         },

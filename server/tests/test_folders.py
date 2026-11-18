@@ -14,17 +14,13 @@ from app.indexing.manifest import Manifest
 from app.main import create_app
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "data" / "corpus"
-FIXTURE = CORPUS / "fixture_术语混写_模拟维保手册.md"
-SEED = pathlib.Path(__file__).resolve().parents[2] / "data" / "terms" / "seed.json"
+FIXTURE = CORPUS / "fixture_术语混写_示例手册.md"
 
 
 @pytest.fixture()
 def tmp_settings(tmp_path, monkeypatch):
     terms = tmp_path / "terms"
     terms.mkdir()
-    import shutil
-
-    shutil.copy(SEED, terms / "seed.json")
     monkeypatch.setenv("INDOCQA_CHROMA_DIR", str(tmp_path / "chroma"))
     monkeypatch.setenv("INDOCQA_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("INDOCQA_SESSION_DB", str(tmp_path / "sessions.db"))
@@ -43,7 +39,7 @@ def _md(path: pathlib.Path, title: str, body: str) -> pathlib.Path:
 
 
 def test_normalize_folder_rules():
-    assert normalize_folder(" 设备手册 / 螺杆 ") == "设备手册/螺杆"
+    assert normalize_folder(" 售后支持 / 退换货 ") == "售后支持/退换货"
     assert normalize_folder(None) == "未分类"
     assert normalize_folder("", default=None) == ""
     with pytest.raises(FolderPathError):
@@ -55,21 +51,21 @@ def test_normalize_folder_rules():
 def test_ingest_with_folder_and_scoped_search(tmp_settings, tmp_path):
     from app.retrieval.searcher import search
 
-    a = _md(tmp_path / "a.md", "螺杆机维护", "LUB 更换周期为 4000 小时，使用 46 号润滑油。")
+    a = _md(tmp_path / "a.md", "智能网关维护", "FLT 更换周期为 4000 小时，使用 46 号滤芯。")
     b = _md(tmp_path / "b.md", "可靠性指标", "MTBF 平均无故障时间为 8000 小时。")
-    ingest_file(a, tmp_settings, folder="设备手册/螺杆空压机")
-    ingest_file(b, tmp_settings, folder="行业标准/可靠性")
+    ingest_file(a, tmp_settings, folder="售后支持/退换货")
+    ingest_file(b, tmp_settings, folder="物流配送/发货与签收")
 
     manifest = Manifest(Manifest.path_for(tmp_settings))
     folders = manifest.folders()
-    assert "设备手册" in folders and "行业标准/可靠性" in folders
+    assert "售后支持" in folders and "物流配送/发货与签收" in folders
     assert all(info.get("folder") for info in manifest.documents().values())
 
-    scoped = search("MTBF 是什么", top_k=6, settings=tmp_settings, folder="行业标准")
-    assert scoped and all(h.folder == "行业标准/可靠性" for h in scoped)
+    scoped = search("MTBF 是什么", top_k=6, settings=tmp_settings, folder="物流配送")
+    assert scoped and all(h.folder == "物流配送/发货与签收" for h in scoped)
 
-    other = search("MTBF 是什么", top_k=6, settings=tmp_settings, folder="设备手册")
-    assert other and all(h.folder == "设备手册/螺杆空压机" for h in other)
+    other = search("MTBF 是什么", top_k=6, settings=tmp_settings, folder="售后支持")
+    assert other and all(h.folder == "售后支持/退换货" for h in other)
 
 
 def test_move_and_rename_folder(tmp_settings, tmp_path):
@@ -77,21 +73,21 @@ def test_move_and_rename_folder(tmp_settings, tmp_path):
 
     from app.api.kb import DocumentMove, FolderRename, move_document, rename_folder
 
-    doc = _md(tmp_path / "a.md", "维护", "LUB 更换周期 4000 小时。")
-    result = ingest_file(doc, tmp_settings, folder="设备手册/螺杆空压机")
+    doc = _md(tmp_path / "a.md", "维护", "FLT 更换周期 4000 小时。")
+    result = ingest_file(doc, tmp_settings, folder="售后支持/退换货")
     doc_id = result["docId"]
 
-    asyncio.run(move_document(doc_id, DocumentMove(folder="行业标准/能源")))
+    asyncio.run(move_document(doc_id, DocumentMove(folder="物流配送/转运中心")))
     manifest = Manifest(Manifest.path_for(tmp_settings))
-    assert manifest.get(doc_id)["folder"] == "行业标准/能源"
+    assert manifest.get(doc_id)["folder"] == "物流配送/转运中心"
 
-    body = FolderRename(**{"from": "行业标准/能源", "to": "标准规范/行业"})
+    body = FolderRename(**{"from": "物流配送/转运中心", "to": "保修服务/维修"})
     asyncio.run(rename_folder(body))
     manifest = Manifest(Manifest.path_for(tmp_settings))
-    assert manifest.get(doc_id)["folder"] == "标准规范/行业"
+    assert manifest.get(doc_id)["folder"] == "保修服务/维修"
 
-    hits = store.query(tmp_settings, "LUB 更换周期", top_k=5, folder="标准规范")
-    assert hits and all(h["folder"] == "标准规范/行业" for h in hits)
+    hits = store.query(tmp_settings, "FLT 更换周期", top_k=5, folder="保修服务")
+    assert hits and all(h["folder"] == "保修服务/维修" for h in hits)
 
 
 def test_delete_folder_move_mode(tmp_settings, tmp_path):
@@ -99,7 +95,7 @@ def test_delete_folder_move_mode(tmp_settings, tmp_path):
 
     from app.api.kb import delete_folder
 
-    doc = _md(tmp_path / "a.md", "维护", "LUB 更换周期 4000 小时。")
+    doc = _md(tmp_path / "a.md", "维护", "FLT 更换周期 4000 小时。")
     result = ingest_file(doc, tmp_settings, folder="临时目录/子目录")
     asyncio.run(delete_folder("临时目录/子目录", mode="move"))
     manifest = Manifest(Manifest.path_for(tmp_settings))
@@ -136,9 +132,9 @@ def test_gbk_markdown_loader(tmp_path):
     from app.parsing.loader import load_document
 
     path = tmp_path / "gbk.md"
-    path.write_bytes("# 设备手册\n\n润滑油更换周期为 4000 小时。\n".encode("gb18030"))
+    path.write_bytes("# 售后支持\n\n滤芯更换周期为 4000 小时。\n".encode("gb18030"))
     doc = load_document(path)
-    assert "润滑油更换周期" in "\n".join(p.text for p in doc.paragraphs)
+    assert "滤芯更换周期" in "\n".join(p.text for p in doc.paragraphs)
 
 
 def test_chitchat_skips_retrieval(tmp_settings, tmp_path):
@@ -146,8 +142,8 @@ def test_chitchat_skips_retrieval(tmp_settings, tmp_path):
 
     from app.graph.graph import run_retrieval
 
-    doc = _md(tmp_path / "a.md", "维护", "LUB 更换周期 4000 小时。")
-    ingest_file(doc, tmp_settings, folder="设备手册")
+    doc = _md(tmp_path / "a.md", "维护", "FLT 更换周期 4000 小时。")
+    ingest_file(doc, tmp_settings, folder="售后支持")
     result = asyncio.run(run_retrieval("你好", "adaptive", tmp_settings))
     assert result["hits"] == []
     retrieval_steps = [s for s in result["trace"] if s["stage"] == "retrieve"]
@@ -159,39 +155,39 @@ def test_folder_api_crud(tmp_settings, tmp_path):
         response = TestClient(create_app()).post(
             "/api/kb/ingest",
             files={"file": (FIXTURE.name, f, "text/markdown")},
-            data={"folder": "设备手册/螺杆空压机"},
+            data={"folder": "售后支持/退换货"},
         )
     assert response.status_code == 200
-    assert response.json()["data"]["folder"] == "设备手册/螺杆空压机"
+    assert response.json()["data"]["folder"] == "售后支持/退换货"
 
     client = TestClient(create_app())
     folders = client.get("/api/kb/folders").json()["data"]
-    assert any(item["path"] == "设备手册/螺杆空压机" for item in folders)
+    assert any(item["path"] == "售后支持/退换货" for item in folders)
 
-    created = client.post("/api/kb/folders", json={"path": "行业标准/能源"}).json()["data"]
-    assert created["path"] == "行业标准/能源"
+    created = client.post("/api/kb/folders", json={"path": "物流配送/转运中心"}).json()["data"]
+    assert created["path"] == "物流配送/转运中心"
 
-    docs = client.get("/api/kb/documents", params={"folder": "设备手册"}).json()["data"]
-    assert docs and docs[0]["folder"].startswith("设备手册/")
+    docs = client.get("/api/kb/documents", params={"folder": "售后支持"}).json()["data"]
+    assert docs and docs[0]["folder"].startswith("售后支持/")
 
     doc_id = docs[0]["docId"]
-    moved = client.post(f"/api/kb/documents/{doc_id}/move", json={"folder": "行业标准/能源"})
+    moved = client.post(f"/api/kb/documents/{doc_id}/move", json={"folder": "物流配送/转运中心"})
     assert moved.status_code == 200
 
-    renamed = client.patch("/api/kb/folders", json={"from": "行业标准/能源", "to": "标准规范/能源"})
+    renamed = client.patch("/api/kb/folders", json={"from": "物流配送/转运中心", "to": "保修服务/换新"})
     assert renamed.status_code == 200
-    docs = client.get("/api/kb/documents", params={"folder": "标准规范"}).json()["data"]
+    docs = client.get("/api/kb/documents", params={"folder": "保修服务"}).json()["data"]
     assert any(d["docId"] == doc_id for d in docs)
 
-    deleted = client.delete("/api/kb/folders", params={"path": "标准规范/能源", "mode": "move"})
+    deleted = client.delete("/api/kb/folders", params={"path": "保修服务/换新", "mode": "move"})
     assert deleted.status_code == 200
     docs = client.get("/api/kb/documents").json()["data"]
-    assert any(d["docId"] == doc_id and d["folder"] == "标准规范" for d in docs)
+    assert any(d["docId"] == doc_id and d["folder"] == "保修服务" for d in docs)
 
 
 def test_manifest_folder_tree_survives_reload(tmp_settings, tmp_path):
-    doc = _md(tmp_path / "a.md", "维护", "LUB 更换周期 4000 小时。")
-    ingest_file(doc, tmp_settings, folder="设备手册/螺杆")
+    doc = _md(tmp_path / "a.md", "维护", "FLT 更换周期 4000 小时。")
+    ingest_file(doc, tmp_settings, folder="售后支持/换货")
     raw = json.loads(Manifest(Manifest.path_for(tmp_settings)).path.read_text(encoding="utf-8"))
-    assert "设备手册/螺杆" in raw["folders"]
-    assert "设备手册" in raw["folders"]
+    assert "售后支持/换货" in raw["folders"]
+    assert "售后支持" in raw["folders"]

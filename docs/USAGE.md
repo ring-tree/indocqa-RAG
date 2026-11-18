@@ -1,6 +1,6 @@
 # 功能使用说明
 
-本文档按“问答 → 文档管理 → 会话管理 → 进阶用法”的顺序介绍工阅 IndocQA 的核心功能与操作路径。界面截图见 [`assets/screenshots`](assets/screenshots)。
+本文档按“问答 → 文档管理 → 会话管理 → 进阶用法”的顺序介绍工阅 IndocQA 的核心功能与操作路径。
 
 ## 1. 界面总览
 
@@ -11,13 +11,13 @@
 │ 侧栏          │ 顶栏：品牌 / 知识库规模 / 主题切换              │
 │ 新对话        ├────────────────────────────────────────────────┤
 │ 问答 / 文档管理│ 问答区：模式切换 · 检索范围 · 消息流 · 输入框   │
-│ 最近会话      │ 文档区：统计 · 目录树 · 上传预检 · 文档表格      │
+│ / 引擎配置     │ 文档区：统计 · 目录树 · 上传预检 · 文档表格      │
 └──────────────┴────────────────────────────────────────────────┘
 ```
 
 - 左侧栏可拖拽调宽（最大 40vw），双击或按方向键复位
 - 右上角可切换浅色/深色主题
-- “问答”和“文档管理”通过侧栏顶部切换，状态互不丢失
+- “问答”“文档管理”“引擎配置”通过侧栏顶部切换，状态互不丢失
 
 ## 2. 知识库问答
 
@@ -26,8 +26,6 @@
 1. 进入“问答”页，确认模式为 **知识库问答**
 2. 在底部输入问题（Enter 发送，Shift+Enter 换行）
 3. 回答会流式逐字展示；首 Token 前会显示“正在检索…”
-
-![问答界面](assets/screenshots/chat.png)
 
 ### 2.2 回答区域怎么读
 
@@ -84,12 +82,12 @@
 
 | 场景 | 输入 | 预期行为 |
 | --- | --- | --- |
-| 故障排查 | `空压机报错 E-05 应该怎么处理？` | 故障码精确匹配 → 含义 + 处置步骤 + 引用 |
-| 参数查询 | `LUB 更换的保养周期是多少小时？` | 表格行命中 → 返回 4000 h 与耗材型号 |
-| 术语解释 | `MTBF 和平均无故障时间有什么区别？` | 术语归一 → 同一指标 + 设计值 8000 h |
-| 跨文档多跳 | `MTBF 和储气罐的作用分别是什么？` | 两次检索 → 分别引用两份文档 |
+| 故障排查 | `收不到货怎么办？` | 命中物流与售后文档 → 排查步骤 + 引用 |
+| 参数查询 | `退款一般多久到账？` | 命中时效条款 → 返回天数与条件 |
+| 术语解释 | `保修和质保有什么区别？` | 术语归一 → 同一概念 + 适用范围 |
+| 跨文档多跳 | `退款和换货的时效分别是什么？` | 两次检索 → 分别引用两份文档 |
 | 库外问题 | `量子计算机的工作原理是什么？` | 说明已检索范围；配置模型时标注“非知识库内容” |
-| 多轮追问 | 先问“ZX-50 的 MTBF 是多少？”，再问“它的绝缘等级呢？” | 自动承接 ZX-50 主语 |
+| 多轮追问 | 先问“退款一般多久到账？”，再问“那换货呢？” | 自动承接售后主题 |
 
 ### 2.9 会话附件
 
@@ -169,7 +167,7 @@
 ```bash
 curl -N -X POST http://127.0.0.1:8010/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"储气罐的作用是什么？","mode":"kb","responseFormat":"json"}'
+  -d '{"message":"运费险的作用是什么？","mode":"kb","responseFormat":"json"}'
 ```
 
 拼接所有 `token.delta` 后即为合法 JSON，字段见 [API 文档](API.md#42-结构化输出)。
@@ -178,10 +176,10 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 
 ```json
 {
-  "message": "E-05 怎么处理？",
+  "message": "退款一般多久到账？",
   "mode": "kb",
   "profile": "profile2",
-  "folders": ["设备手册/螺杆空压机", "评测夹具"]
+  "folders": ["售后支持/退换货", "评测夹具"]
 }
 ```
 
@@ -196,6 +194,44 @@ curl -N -X POST http://127.0.0.1:8010/api/chat \
 - Markdown 表格、代码块、KaTeX 公式（`$...$` / `$$...$$`）均原样渲染
 - 代码块内的 `$`、反斜杠不会被误转换
 - 回答复制为 Markdown 时保留全部格式；复制为 TXT 时去除标记但保留正文与引用编号
+
+### 5.5 引擎配置（控制面与构建编排）
+
+侧栏“引擎配置”页仅调用 `/api/v1`，与问答/文档管理互不影响：
+
+1. **知识库**：选择已存在 KB，或输入名称创建新 KB；
+2. **Domain Pack**：从已安装 Pack 中选择并绑定到当前 KB（一 KB 一主 Pack）；
+3. **检索与构建**：选择 `precision@1` / `balanced@1` / `recall@1` 预设，保存配置（返回影响分析，必要时提示“需要新 Build”），然后创建 Build 并激活；
+4. Build 卡片展示 `buildId`、状态、健康与预设；新 Build 只有激活后才会被 `/api/chat`（带 `kbId`）使用。
+
+该页面不提供语料上传；Build 入库请使用 CLI、`POST /api/v1/kbs/{kb}/builds` 的 `corpusDir`，或 `POST /api/v1/kbs/{kb}/documents/ingest`。
+
+### 5.6 CLI 与 `/api/v1`
+
+```bash
+cd server
+
+# 初始化 → 校验 → 构建并激活 → 单次检索
+uv run python -m app.cli init --dir ./demo --name "示例知识库" --pack example-minimal@1.0.0
+uv run python -m app.cli validate --dir ./demo
+uv run python -m app.cli build --dir ./demo
+uv run python -m app.cli query --dir ./demo "示例问题"
+```
+
+```bash
+# 创建 KB 后自动入库并激活（corpusDir 必须位于数据根目录内）
+curl -X POST http://127.0.0.1:8010/api/v1/kbs/kb_cs/builds \
+  -H 'Content-Type: application/json' \
+  -d '{"preset":"balanced@1","corpusDir":"corpus","activate":true}'
+
+# 向 active Build 增量入库 / 替换 / 撤销
+curl -X POST http://127.0.0.1:8010/api/v1/kbs/kb_cs/documents/ingest \
+  -F 'file=@faq.md'
+curl -X POST http://127.0.0.1:8010/api/v1/kbs/kb_cs/documents/<docId>/replace -F 'file=@faq-v2.md'
+curl -X POST http://127.0.0.1:8010/api/v1/kbs/kb_cs/documents/<docId>/undo
+```
+
+设置 `INDOCQA_AUTH_TOKEN` 后，除 `/api/v1/health` 外的 `/api/v1` 请求需带 `-H 'Authorization: Bearer <token>'`（本机回环地址豁免）。完整端点见 [API 文档](API.md#11-控制面与构建编排-apiv1)。
 
 ## 6. 常见问题
 
@@ -215,4 +251,4 @@ A：首 Token 受上游模型影响；45 秒无数据前端会提示重试。可
 A：检索可以完全离线（`INDOCQA_EMBED_BACKEND=local`，权重随仓库分发）；生成回答需要本地或远程 OpenAI 兼容模型。
 
 **Q：数据存在哪里？**
-A：`server/data/chroma/`（向量与 BM25）、`server/data/db/sessions.db`（会话）、`server/data/uploads/`（原文件）。备份这三个目录即可。
+A：问答与知识运营链路：`server/data/chroma/`（向量与 BM25）、`server/data/db/sessions.db`（会话）、`server/data/uploads/`（原文件）；控制面与构建编排链路：`server/data/engine/`（控制面 SQLite、Build 索引与对象存储）。备份这些目录即可。

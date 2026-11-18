@@ -102,7 +102,7 @@ async def main() -> int:
     apply_env({})  # 先统一嵌入后端环境，再建库——保证建库与查询使用同一模型
     prepare()
 
-    dataset_path = ROOT / "eval" / "dataset.jsonl"
+    dataset_path = ROOT / "eval" / "dataset-support.jsonl"
     cases = [json.loads(line) for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     print(f"评测集 {len(cases)} 题")
 

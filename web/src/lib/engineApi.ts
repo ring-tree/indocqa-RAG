@@ -1,4 +1,4 @@
-/** 新引擎 v1 API 封装；旧 /api 链路保持独立。 */
+/** 控制面与构建编排（v1）API 封装；问答与知识运营（/api）链路保持独立。 */
 
 export interface EngineKB {
   kbId: string;

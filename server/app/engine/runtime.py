@@ -1,10 +1,11 @@
 """引擎运行时组合根：按部署配置装配控制面与适配器。
 
-新引擎只服务 `/api/v1`，与旧 `/api` 链路并行；数据目录独立。
+构建编排引擎只服务 `/api/v1`，与问答与知识运营链路（`/api`）并行；数据目录独立。
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -32,6 +33,7 @@ class EngineRuntime:
     engine: EnginePipeline
     pack_loader: PackLoader
     pack_registry: PackRegistry
+    embedder_factory: Callable[[str | None], EmbeddingAdapter]
 
 
 @lru_cache
@@ -42,7 +44,7 @@ def get_runtime() -> EngineRuntime:
     plane = ControlPlane(base / "control.db")
     embedder = OllamaEmbeddingAdapter(
         settings.ollama_base_url,
-        settings.ollama_embed_model,
+        settings.embed_ollama_model,
         settings.engine_embed_dimension,
         revision="latest",
         runtime="ollama",
@@ -50,7 +52,21 @@ def get_runtime() -> EngineRuntime:
     vector_index = ChromaVectorAdapter(base / "chroma")
     keyword_index = Bm25KeywordAdapter(base / "bm25")
     object_store = LocalObjectStore(base / "objects")
-    engine = EnginePipeline(plane, embedder, vector_index, keyword_index)
+
+    def embedder_for(model: str | None) -> EmbeddingAdapter:
+        if not model or model == settings.embed_ollama_model:
+            return embedder
+        return OllamaEmbeddingAdapter(
+            settings.ollama_base_url,
+            model,
+            settings.engine_embed_dimension,
+            revision="latest",
+            runtime="ollama",
+        )
+
+    engine = EnginePipeline(
+        plane, embedder, vector_index, keyword_index, embedder_factory=embedder_for
+    )
     pack_loader = PackLoader(settings.packs_dir, engine_version=settings.version)
     pack_registry = PackRegistry(
         plane, pack_loader, engine_version=settings.version
@@ -65,6 +81,7 @@ def get_runtime() -> EngineRuntime:
         engine=engine,
         pack_loader=pack_loader,
         pack_registry=pack_registry,
+        embedder_factory=embedder_for,
     )
 
 

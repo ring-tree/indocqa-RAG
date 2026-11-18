@@ -1,6 +1,6 @@
 # Domain Pack 编写指南
 
-本文档说明如何新增一个领域 Pack；完整示例见 `server/packs/example-minimal/1.0.0/`，工业与客服示例见 `industrial-compressor` 与 `customer-service-faq`。
+本文档说明如何新增一个领域 Pack；完整示例见 `server/packs/example-minimal/1.0.0/`，客服 FAQ 示例见 `customer-service-faq`。
 
 ## 1. 目录结构
 
@@ -106,6 +106,13 @@ curl -X POST http://127.0.0.1:8010/api/v1/kbs/<kb>/pack \
 4. 用独立数据目录启动，完成建库、构建、查询、引用与回滚；
 5. 全量 `pytest` 通过。
 
-## 7. 已知限制
+## 7. 术语缓存与升级
 
-Pack 术语变更后，已有 KB 的 `terms.json` 缓存不会自动失效（ISSUE-20261118-07）；升级术语时应删除 KB 缓存或等待 P6 后的哈希失效机制。
+术语缓存 `terms.json` 会记录 Pack 的 `id/version/contentHash`：
+
+- 哈希一致：直接复用缓存；
+- 哈希变化（Pack 升级）：先清除 BM25 侧车旧“同义”标签，再重建簇并重新打标；
+- 旧缓存没有哈希：首次使用时只补写当前哈希，不重建，保持既有检索结果；
+- KB 解绑 Pack：重建为无 Pack 种子状态，并清除旧标签。
+
+因此升级 Pack 的 `terms.json` 后无需手工删除缓存；分类、意图、提示词为实时读取，不受缓存影响。

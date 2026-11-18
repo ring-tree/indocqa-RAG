@@ -18,7 +18,7 @@ class FakeEmbedder:
     )
 
     def embed_documents(self, texts):
-        return [[1.0, 0.0] if "空压机" in text else [0.0, 1.0] for text in texts]
+        return [[1.0, 0.0] if "智能网关" in text else [0.0, 1.0] for text in texts]
 
     def embed_query(self, texts):
         return [[1.0, 0.0] for _ in texts]
@@ -45,16 +45,16 @@ def test_create_index_and_search(tmp_path):
         build,
         "doc-a",
         [
-            ChunkInput("c1", "空压机故障代码 E-05"),
-            ChunkInput("c2", "储气罐压力说明"),
+            ChunkInput("c1", "智能网关故障代码 E-05"),
+            ChunkInput("c2", "缓存模块压力说明"),
         ],
     )
 
-    hits = engine.search(build, "空压机", top_k=2)
+    hits = engine.search(build, "智能网关", top_k=2)
     assert hits
     assert hits[0].chunk_id == "c1"
-    assert plane.get_chunks(build, ["c1"])[0]["text"].startswith("空压机")
+    assert plane.get_chunks(build, ["c1"])[0]["text"].startswith("智能网关")
 
     other = engine.create_build(kb)
-    assert engine.search(other, "空压机", top_k=2) == []
+    assert engine.search(other, "智能网关", top_k=2) == []
     plane.close()
