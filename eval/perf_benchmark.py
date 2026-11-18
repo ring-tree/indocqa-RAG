@@ -60,10 +60,11 @@ def mean(values: list[float]) -> float:
     return float(statistics.mean(values)) if values else 0.0
 
 
-def load_cases() -> list[dict]:
+def load_cases(dataset: Path | None = None) -> list[dict]:
+    source = dataset or DATASET
     return [
         json.loads(line)
-        for line in DATASET.read_text(encoding="utf-8").splitlines()
+        for line in source.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
 
@@ -147,6 +148,15 @@ async def run_retrieval_quality(
     sys.path.insert(0, str(SERVER))
     os.chdir(SERVER)
     from app.graph.graph import run_retrieval
+
+    pack_ref = os.environ.get("INDOCQA_LEGACY_PACK")
+    if pack_ref:
+        from app.core.config import get_settings
+        from app.packs.legacy_adapter import enable_legacy_pack
+
+        settings = get_settings()
+        enabled = enable_legacy_pack(pack_ref, settings.packs_dir, settings.version)
+        print(f"    已启用 Domain Pack：{enabled}")
 
     results: dict[str, dict] = {}
     # 预热，排除首次模型/图编译开销
@@ -1179,6 +1189,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description="IndocQA RAG 性能基准")
     parser.add_argument("--base-url", default="http://127.0.0.1:8010")
     parser.add_argument("--output", default=str(DEFAULT_OUT))
+    parser.add_argument("--dataset", default=str(DATASET))
     parser.add_argument("--chat-sample", type=int, default=10)
     parser.add_argument("--concurrency", default="1,2,4,8")
     parser.add_argument("--tasks-per-level", type=int, default=8)
@@ -1204,7 +1215,7 @@ async def main() -> int:
     chart_dir = out / "charts"
     out.mkdir(parents=True, exist_ok=True)
 
-    cases = load_cases()
+    cases = load_cases(Path(args.dataset))
     run_id = datetime.now().strftime("%m%d%H%M%S")
 
     async with httpx.AsyncClient(base_url=args.base_url, timeout=30.0) as client:

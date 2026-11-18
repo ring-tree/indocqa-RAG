@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 from app.core.config import Settings
 from app.core.llm import LLMGateway
+from app.core.runtime_overrides import prompt_style_text
 from app.retrieval.searcher import Hit
 
 SYSTEM_PROMPT = (
@@ -74,6 +75,9 @@ async def stream_answer(
                 messages[-1]["content"] = f"{messages[-1]['content']}\n\n{extra_instruction}"
         else:
             system = SYSTEM_PROMPT + (STEP_RULE if intent in {"procedure", "fault"} else "")
+            style = prompt_style_text()
+            if style:
+                system = f"{system}\n\n回答风格：{style}"
             messages = [
                 {"role": "system", "content": system},
                 *(history or []),

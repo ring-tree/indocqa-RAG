@@ -1,7 +1,7 @@
 """混合检索：向量召回 + BM25 关键词召回，RRF 融合排序。
 
 RRF（Reciprocal Rank Fusion）只依赖排名而不依赖分数尺度，
-对语义（向量）与精确匹配（BM25，故障码/型号/术语缩写）两类信号无偏融合。
+对语义（向量）与精确匹配（BM25，编号/型号/术语缩写）两类信号无偏融合。
 """
 
 import re
@@ -13,7 +13,7 @@ from app.indexing.bm25_index import get_bm25
 
 RRF_K = 60
 EXPAND = 3  # 两路召回各取 top_k * EXPAND 再融合
-CODE_BOOST = 0.02  # 故障码/型号精确命中时叠加到 RRF 分数
+CODE_BOOST = 0.02  # 编号/型号精确命中时叠加到 RRF 分数
 # 单路高分补偿：向量 top3 但 BM25 未召回时（跨语种/中文问英文文档）追加的 RRF 分
 SINGLE_ROUTE_BOOST = 0.5
 CROSS_LINGUAL_BOOST = 1.0
@@ -29,7 +29,7 @@ _CODE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,4}[-_]?\d{1,4}(?![A-Za-z0-9])")
 
 
 def _code_bonus(query: str, text: str) -> float:
-    """故障码/型号（E-05 / E05 / P4）精确命中加权，弥补 BM25 被高频词稀释。"""
+    """编号/型号（如 A-01 / A01）精确命中加权，弥补 BM25 被高频词稀释。"""
     wanted = {c.upper().replace("-", "").replace("_", "") for c in _CODE.findall(query)}
     if not wanted:
         return 0.0
@@ -68,7 +68,7 @@ def search(
 
     - query：语义路（向量）查询；query_lex：词法路（BM25）查询，术语扩展词只进词法路，
       避免扩展词稀释向量语义（消融实验发现稀释会降低召回）。
-    - strategy：hybrid 两路融合；keyword 仅 BM25（故障码等精确匹配）；vector 仅向量；
+    - strategy：hybrid 两路融合；keyword 仅 BM25（编号等精确匹配）；vector 仅向量；
       none 直接返回空（寒暄等无需检索）。
     - min_sim 仅作用于向量命中那一路。
     - folder/folders：目录子树过滤（含自身），空表示全库。

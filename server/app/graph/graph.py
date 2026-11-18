@@ -17,7 +17,7 @@ from app.retrieval.intents import classify
 from app.retrieval.router import plan_for
 from app.retrieval.searcher import Hit, search
 
-# 故障码/步骤码/型号：用于检索时二次加权，避免代码表块压过处置步骤块
+# 编号/步骤码/型号：用于检索时二次加权，避免代码表块压过处置步骤块
 _REF_ID = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,4}[-_]?\d{1,4}(?![A-Za-z0-9])")
 _ANCHOR_BOOST = 0.05
 
@@ -74,8 +74,8 @@ def rewrite_node(state: GState) -> dict:
     else:
         semantic = state["question"]
     if state["intent"] in {"fault", "procedure", "param"}:
-        # 故障码/步骤码在问题中重复一次，提高 BM25 查询词频：
-        # “E-05 → S-12”场景下代码表会压过 S-12 处置步骤块，二次加权可把步骤块拉回候选集。
+        # 编号/步骤码在问题中重复一次，提高 BM25 查询词频：
+        # “错误码 → 步骤码”场景下代码表会压过步骤块，二次加权可把步骤块拉回候选集。
         anchors = list(dict.fromkeys(_REF_ID.findall(state["question"])))
         if anchors:
             query_lex = f"{query_lex} {' '.join(anchors)}"
@@ -117,7 +117,7 @@ def retrieve_node(state: GState) -> dict:
         ]
         hits.sort(key=lambda h: h.rrf, reverse=True)
     hits = rerank_mod.rerank(query_lex, hits, top_k)
-    # 显式故障码/步骤码/型号锚点补查：代码表块可能压过处置步骤块，
+    # 显式编号/步骤码/型号锚点补查：代码表块可能压过处置步骤块，
     # 用锚点本身再做一次关键词检索，并把命中并入候选集。
     anchors = list(dict.fromkeys(_REF_ID.findall(state["question"])))
     anchor_hits = []

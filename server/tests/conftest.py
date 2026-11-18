@@ -35,3 +35,20 @@ def _isolate_model_profiles(monkeypatch):
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture()
+def industrial_pack():
+    """启用工业 Domain Pack 的旧链路覆盖（P4 等价验证场景）。"""
+    from app.core.runtime_overrides import clear_overrides, set_overrides
+    from app.packs.legacy_adapter import overrides_from_pack
+    from app.packs.loader import PackLoader
+
+    loaded = PackLoader(SERVER_ROOT / "packs", engine_version="0.1.0").load(
+        "industrial-compressor", "1.0.0"
+    )
+    set_overrides(overrides_from_pack(loaded.pack))
+    try:
+        yield loaded
+    finally:
+        clear_overrides()

@@ -83,7 +83,7 @@ def test_preview_scanned_pdf_rejected(tmp_settings, tmp_path):
         preview_mod.load_document = original
 
 
-def test_noise_cluster_filtered_by_frequency(tmp_settings):
+def test_noise_cluster_filtered_by_frequency(tmp_settings, industrial_pack):
     ingest_file(FIXTURE, tmp_settings)
     clusters = build_clusters(tmp_settings)
     noisy = [c for c in clusters if any("Running time" in m for m in c)]

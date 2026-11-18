@@ -14,6 +14,7 @@ import time
 from app.core.config import get_settings
 from app.core.exceptions import AIUnavailableError, DocumentNotFoundError
 from app.core.llm import LLMGateway
+from app.core.runtime_overrides import get_overrides
 from app.indexing import store
 from app.indexing.folders import (
     DEFAULT_FOLDER,
@@ -28,13 +29,6 @@ LLM_TIMEOUT = 8.0
 HIGH, MID = 0.80, 0.60
 
 _WEIGHTS = {"semantic": 0.40, "rule": 0.25, "title": 0.15, "structure": 0.10, "history": 0.10}
-_RULES = (
-    (("fixture", "评测夹具"), ("评测夹具",), "文件名命中评测夹具"),
-    (("sourcebook", "compressed_air", "doe"), ("行业标准",), "行业标准/能源类资料"),
-    (("螺杆", "screw"), ("螺杆",), "文件名命中螺杆空压机"),
-    (("无油", "静音"), ("无油",), "文件名命中无油/静音空压机"),
-    (("安全", "规程"), ("安全",), "文档属于安全规程"),
-)
 _JSON = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -60,9 +54,23 @@ def _normalize_sim(sim: float) -> float:
     return _clip((sim - 0.35) / 0.35)
 
 
+def _rules() -> tuple:
+    """分类规则只来自 Domain Pack；未绑定 Pack 时不做文件名规则匹配。"""
+    overrides = get_overrides()
+    if not overrides or not overrides.classification_rules:
+        return ()
+    rules = []
+    for item in overrides.classification_rules:
+        keys = tuple(part for part in str(item.get("pattern", "")).split("|") if part)
+        folder = item.get("folder")
+        if keys and folder:
+            rules.append((keys, (folder,), item.get("reason", "Pack 分类规则")))
+    return tuple(rules)
+
+
 def _rule_match(filename: str, folders: list[str]) -> tuple[str | None, str]:
     name = (filename or "").lower()
-    for keys, suffixes, reason in _RULES:
+    for keys, suffixes, reason in _rules():
         if not any(k.lower() in name for k in keys):
             continue
         candidates = [
@@ -169,7 +177,15 @@ def _clean_title(filename: str) -> str:
     stem = re.sub(r"^(?:preview|[0-9a-f]{8})_[0-9a-f]{8}_", "", stem)
     stem = re.sub(r"^[0-9a-f]{8}_", "", stem)
     stem = re.sub(r"[（(]\s*厂商公开\s*[)）]", "", stem)
-    stem = re.sub(r"(操作手册|使用说明书|使用手册|说明书|技术资料|技术文档|手册)$", "", stem)
+    overrides = get_overrides()
+    cleanup = (
+        overrides.title_cleanup
+        if overrides and overrides.title_cleanup
+        else ["操作手册", "使用说明书", "使用手册", "说明书", "技术资料", "技术文档", "手册"]
+    )
+    if cleanup:
+        pattern = "|".join(re.escape(item) for item in cleanup)
+        stem = re.sub(f"(?:{pattern})$", "", stem)
     stem = stem.replace("_", " ").strip()
     stem = re.sub(r"[\\/:*?\"<>|]", " ", stem)
     stem = " ".join(stem.split())[:30].strip()
@@ -230,7 +246,7 @@ async def _llm_rerank(
         f"- {item['path']}（当前置信度 {item['confidence']:.2f}）" for item in candidates[:8]
     )
     prompt = (
-        "你是工业知识库归档助手。请从候选目录中为文档选择最合适的目录。\n"
+        "你是知识库归档助手。请从候选目录中为文档选择最合适的目录。\n"
         f"候选目录：\n{folder_lines}\n\n"
         f"文档文件名：{filename}\n文档摘要：{summary[:600]}\n\n"
         '只输出 JSON：{"candidates":[{"path":"候选目录之一","confidence":0到1,"reason":"20字内依据"}]}，'

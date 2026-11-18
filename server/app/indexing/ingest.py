@@ -8,6 +8,7 @@ import sys
 import time
 
 from app.core.config import get_settings
+from app.core.runtime_overrides import get_overrides
 from app.indexing import store
 from app.indexing.folders import ancestors, normalize_folder, validate_document_target
 from app.indexing.lock import write_guard
@@ -15,8 +16,16 @@ from app.indexing.manifest import Manifest
 from app.parsing.chunker import build_chunks
 from app.parsing.loader import MD_EXTS, load_document
 
-SKIP_FILES = {"sources.md"}
+# 默认不跳过任何文件；跳过清单由 Domain Pack 的 parser.skip_files 提供
+SKIP_FILES: set[str] = set()
 ALLOWED_EXTS = {".pdf"} | MD_EXTS
+
+
+def _skip_files() -> set[str]:
+    overrides = get_overrides()
+    if overrides and overrides.skip_files:
+        return set(overrides.skip_files)
+    return set()
 
 
 def ingest_file(
@@ -115,7 +124,7 @@ def ingest_dir(directory: pathlib.Path, settings=None, folder: str | None = None
     settings = settings or get_settings()
     results = []
     for path in sorted(directory.iterdir()):
-        if path.is_file() and path.suffix.lower() in ALLOWED_EXTS and path.name not in SKIP_FILES:
+        if path.is_file() and path.suffix.lower() in ALLOWED_EXTS and path.name not in _skip_files():
             results.append(ingest_file(path, settings, folder=folder))
     return results
 
@@ -165,7 +174,7 @@ def main(argv: list[str]) -> int:
         else sorted(
             p
             for p in target.iterdir()
-            if p.is_file() and p.suffix.lower() in ALLOWED_EXTS and p.name not in SKIP_FILES
+            if p.is_file() and p.suffix.lower() in ALLOWED_EXTS and p.name not in _skip_files()
         )
     )
     if not targets:

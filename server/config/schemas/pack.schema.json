@@ -258,6 +258,20 @@
       "title": "PackUIConfig",
       "type": "object"
     },
+    "ParserConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "skip_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skip Files",
+          "type": "array"
+        }
+      },
+      "title": "ParserConfig",
+      "type": "object"
+    },
     "PersonaConfig": {
       "additionalProperties": false,
       "properties": {
@@ -302,12 +316,35 @@
       },
       "title": "PromptStyleConfig",
       "type": "object"
+    },
+    "TermsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "clusters": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Clusters",
+          "type": "object"
+        }
+      },
+      "title": "TermsConfig",
+      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
     "manifest": {
       "$ref": "#/$defs/PackManifest"
+    },
+    "parser": {
+      "$ref": "#/$defs/ParserConfig"
+    },
+    "terms": {
+      "$ref": "#/$defs/TermsConfig"
     },
     "folders": {
       "$ref": "#/$defs/FolderConfig"

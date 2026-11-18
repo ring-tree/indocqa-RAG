@@ -54,14 +54,7 @@ def client(tmp_path, monkeypatch):
     store._client.cache_clear()
 
 
-def test_sse_event_order_golden(client):
-    """SSE golden：顺序、终止事件唯一与必填字段。"""
-    r = client.post(
-        "/api/chat",
-        json={"message": "储气罐的作用是什么？", "mode": "kb"},
-    )
-    assert r.status_code == 200
-    events = _parse_sse(r.text)
+def _assert_sse_golden(events: list[dict]) -> None:
     kinds = [e["event"] for e in events]
     assert kinds, "至少应有一个 SSE 事件"
     assert kinds[0] in {"trace", "context", "sources"}
@@ -82,6 +75,28 @@ def test_sse_event_order_golden(client):
             assert event["data"].get("stage")
         if event["event"] == "sources":
             assert isinstance(event["data"].get("items"), list)
+
+
+def test_sse_event_order_golden(client):
+    """SSE golden：顺序、终止事件唯一与必填字段。"""
+    r = client.post(
+        "/api/chat",
+        json={"message": "储气罐的作用是什么？", "mode": "kb"},
+    )
+    assert r.status_code == 200
+    _assert_sse_golden(_parse_sse(r.text))
+
+
+def test_sse_event_order_golden_with_industrial_pack(industrial_pack, client):
+    """P4 等价：工业 Pack 启用后 SSE 事件顺序与字段不变。"""
+    r = client.post(
+        "/api/chat",
+        json={"message": "储气罐的作用是什么？", "mode": "kb"},
+    )
+    assert r.status_code == 200
+    events = _parse_sse(r.text)
+    _assert_sse_golden(events)
+    assert "sources" in [e["event"] for e in events]
 
 
 def test_kb_chat_stream_with_sources_and_done(client):

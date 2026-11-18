@@ -3,12 +3,26 @@
 import re
 from dataclasses import dataclass, field
 
+from app.core.runtime_overrides import get_overrides
 from app.retrieval.searcher import Hit
 
 _CITED = re.compile(r"\[(\d+)\]")
-_DATA = re.compile(
+_DATA_BASE = re.compile(
     r"\d|MPa|kPa|℃|°C|小时|分钟|周期|压力|温度|型号|额定|流量|电压|电流|功率|mm|kg|rpm|%"
 )
+
+
+def _data_pattern() -> re.Pattern:
+    overrides = get_overrides()
+    if not overrides or not (overrides.data_fact_units or overrides.data_fact_keywords):
+        return _DATA_BASE
+    terms = [*overrides.data_fact_units, *overrides.data_fact_keywords]
+    extra = "|".join(re.escape(term) for term in terms if term)
+    if not extra:
+        return _DATA_BASE
+    return re.compile(f"{_DATA_BASE.pattern}|{extra}")
+
+
 _CLAIM = re.compile(
     r"是指|表示|属于|包括|采用|要求|必须|应当|应|需要|不得|可以|为|是|没有|不存在|相同|一致|区别"
 )
@@ -129,7 +143,7 @@ def _append_table_citation(line: str, index: int) -> str:
 
 def _analyze(sentence: str) -> tuple[bool, bool]:
     text = _INLINE_MARKS.sub("", _CITED.sub("", _PLACEHOLDER.sub("", sentence)))
-    is_data = bool(_DATA.search(text))
+    is_data = bool(_data_pattern().search(text))
     is_claim = bool(_CLAIM.search(text)) and len(text.strip()) >= 4
     return is_data, is_claim
 
@@ -204,7 +218,7 @@ def _process_table(
         audit.table_rows_cited += 1
         audit.citations.extend(valid)
         return line
-    if not _DATA.search(_INLINE_MARKS.sub("", sentence)):
+    if not _data_pattern().search(_INLINE_MARKS.sub("", sentence)):
         return line
     audit.data_facts += 1
     index = _best_match(sentence, hits)

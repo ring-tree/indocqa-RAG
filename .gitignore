@@ -19,6 +19,9 @@ eval/results/raw/
 
 # 内核同步副本的运行时生成物
 server/data/chroma/
+server/data/chroma-local/
+server/data/chroma-minilm/
+server/data/engine/
 server/data/cache/
 server/data/uploads/
 server/data/attachments/

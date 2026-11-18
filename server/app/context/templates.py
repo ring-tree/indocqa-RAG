@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 
 from app.context.schema import ContextUnit
+from app.core.runtime_overrides import prompt_style_text
 
 _PLACEHOLDER = re.compile(r"\{[a-z_]+\}|<[a-z_]+>")
 _CITATION_LINE = re.compile(r"^\[(\d+)\]", re.MULTILINE)
@@ -96,6 +97,10 @@ def _system_block(
         lines.append(spec.task_header)
         for unit in task:
             lines.append(f"- {unit.text}")
+    style = prompt_style_text()
+    if style:
+        lines.append("")
+        lines.append(f"回答风格：{style}")
     return "\n".join(lines)
 
 

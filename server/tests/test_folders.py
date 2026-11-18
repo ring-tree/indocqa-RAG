@@ -107,18 +107,29 @@ def test_delete_folder_move_mode(tmp_settings, tmp_path):
 
 
 def test_migration_is_idempotent(tmp_settings):
+    from app.core.runtime_overrides import RuntimeOverrides, clear_overrides, set_overrides
+
     result = ingest_file(FIXTURE, tmp_settings)
     manifest = Manifest(Manifest.path_for(tmp_settings))
     manifest.data["documents"][result["docId"]].pop("folder", None)
     manifest.save()
 
-    first = migrate_folders(tmp_settings)
-    assert first["migrated"] == 1
-    manifest = Manifest(Manifest.path_for(tmp_settings))
-    assert manifest.get(result["docId"])["folder"] == "评测夹具"
+    set_overrides(
+        RuntimeOverrides(
+            folder_migration={"fixture": "评测夹具", "术语混写": "评测夹具"},
+            folder_default="未分类",
+        )
+    )
+    try:
+        first = migrate_folders(tmp_settings)
+        assert first["migrated"] == 1
+        manifest = Manifest(Manifest.path_for(tmp_settings))
+        assert manifest.get(result["docId"])["folder"] == "评测夹具"
 
-    second = migrate_folders(tmp_settings)
-    assert second["migrated"] == 0
+        second = migrate_folders(tmp_settings)
+        assert second["migrated"] == 0
+    finally:
+        clear_overrides()
 
 
 def test_gbk_markdown_loader(tmp_path):

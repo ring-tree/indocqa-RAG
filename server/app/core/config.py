@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     engine_data_dir: str = "data/engine"
     engine_embed_dimension: int = Field(default=1024, ge=1)
     packs_dir: str = "packs"
+    # 旧链路可选的 Domain Pack 覆盖，格式 <pack-id>@<version>；为空时保持硬编码默认
+    legacy_pack: str = ""
+    # 启动时按 Pack 迁移存量目录；默认关闭，需显式开启
+    folder_migration_enabled: bool = False
     corpus_dir: str = "../data/corpus"
     upload_dir: str = "data/uploads"
     # 会话附件：与知识库上传目录分离，按 session 隔离存储

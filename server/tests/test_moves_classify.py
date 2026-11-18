@@ -130,7 +130,7 @@ def test_preview_classification_reports_unavailable_without_model(tmp_settings, 
     assert report["classification"]["reason"] == "no_model"
 
 
-def test_rule_candidates_prefer_matching_folder(tmp_settings):
+def test_rule_candidates_prefer_matching_folder(industrial_pack, tmp_settings):
     candidates = classify_service._build_candidates(
         ["设备手册/螺杆空压机", "行业标准/压缩空气系统", "评测夹具"],
         "螺杆式空压机操作手册.pdf",
@@ -140,4 +140,4 @@ def test_rule_candidates_prefer_matching_folder(tmp_settings):
     )
     assert candidates[0]["path"] == "设备手册/螺杆空压机"
     assert candidates[0]["confidence"] >= 0.9
-    assert "螺杆" in candidates[0]["reason"] or "型号" in candidates[0]["reason"]
+    assert "分类规则" in candidates[0]["reason"]

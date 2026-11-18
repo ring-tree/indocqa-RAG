@@ -1,0 +1,11 @@
+{
+  "filename_rules": [
+    {"pattern": "fixture|评测夹具", "folder": "评测夹具", "priority": 10},
+    {"pattern": "sourcebook|compressed_air|doe", "folder": "行业标准", "priority": 20},
+    {"pattern": "螺杆|screw", "folder": "设备手册", "priority": 30},
+    {"pattern": "无油|静音", "folder": "设备手册", "priority": 40},
+    {"pattern": "安全|规程", "folder": "安全规程", "priority": 50}
+  ],
+  "document_types": ["手册", "说明书", "标准", "规程", "指南"],
+  "title_cleanup": ["操作手册", "使用说明书", "使用手册", "说明书", "技术资料", "技术文档", "手册"]
+}

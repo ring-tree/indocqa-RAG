@@ -4,6 +4,7 @@ import json
 import re
 
 from app.context.schema import ContextUnit, PersonaFact, TaskState
+from app.core.runtime_overrides import get_overrides
 
 DEFAULT_WEIGHTS = {
     "rel": 0.38,
@@ -71,6 +72,12 @@ def _authority(unit: ContextUnit) -> float:
     if unit.layer in {"persona", "task"}:
         return 1.0
     name = f"{unit.ref.doc_name or ''}{unit.ref.section or ''}"
+    overrides = get_overrides()
+    if overrides and overrides.authority_types:
+        for token, weight in overrides.authority_types.items():
+            if token in name:
+                return weight
+        return 0.7
     if "标准" in name or "规范" in name:
         return 0.9
     if "手册" in name or "规程" in name or "说明书" in name:

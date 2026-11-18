@@ -46,6 +46,14 @@ class FolderConfig(StrictModel):
     migration: dict[str, str] = Field(default_factory=dict)
 
 
+class ParserConfig(StrictModel):
+    skip_files: list[str] = Field(default_factory=list)
+
+
+class TermsConfig(StrictModel):
+    clusters: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class ClassificationConfig(StrictModel):
     filename_rules: list[FilenameRule] = Field(default_factory=list)
     document_types: list[str] = Field(default_factory=list)
@@ -111,6 +119,8 @@ class EvalConfig(StrictModel):
 
 class DomainPack(StrictModel):
     manifest: PackManifest
+    parser: ParserConfig = Field(default_factory=ParserConfig)
+    terms: TermsConfig = Field(default_factory=TermsConfig)
     folders: FolderConfig = Field(default_factory=FolderConfig)
     classification: ClassificationConfig = Field(default_factory=ClassificationConfig)
     intent: IntentConfig = Field(default_factory=IntentConfig)

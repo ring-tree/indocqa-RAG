@@ -8,6 +8,8 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
+from app.core.runtime_overrides import get_overrides
+
 _CHITCHAT = re.compile(
     r"^(你好|您好|hi|hello|嗨|谢谢|感谢|在吗|再见|早上好|下午好|晚上好)\b", re.IGNORECASE
 )
@@ -70,25 +72,65 @@ def entities_of(question: str) -> list[str]:
     return seen
 
 
+def _merged(base: re.Pattern, terms: list[str]) -> re.Pattern:
+    values = [term for term in terms if term]
+    if not values:
+        return base
+    extra = "|".join(re.escape(term) for term in values)
+    return re.compile(f"(?:{base.pattern})|(?:{extra})", base.flags)
+
+
+def _patterns() -> tuple[re.Pattern, re.Pattern, re.Pattern, re.Pattern, re.Pattern]:
+    overrides = get_overrides()
+    if overrides is None:
+        return _FAULT, _PARAM, _TERM, _PROCEDURE, _CONNECTIVE
+    keywords = overrides.intent_keywords
+    return (
+        _merged(_FAULT, keywords.get("fault", [])),
+        _merged(_PARAM, keywords.get("param", [])),
+        _merged(_TERM, keywords.get("term", [])),
+        _merged(_PROCEDURE, keywords.get("procedure", [])),
+        _merged(_CONNECTIVE, overrides.intent_connectors),
+    )
+
+
+def _fault_code_pattern() -> re.Pattern:
+    overrides = get_overrides()
+    if overrides and overrides.reference_code_pattern:
+        return re.compile(overrides.reference_code_pattern)
+    return _FAULT_CODE
+
+
+def _strip_exceptions(text: str) -> str:
+    overrides = get_overrides()
+    result = _NO_FAULT_TERM.sub("", text)
+    if overrides:
+        for term in overrides.intent_exceptions:
+            if term:
+                result = result.replace(term, "")
+    return result
+
+
 def classify(question: str) -> IntentResult:
-    # 全角字母/连字符/数字归一（Ｅ－０５ → E-05），再进入规则与检索
+    # 全角字母/连字符/数字归一（Ａ－１２ → A-12），再进入规则与检索
     q = unicodedata.normalize("NFKC", question).strip()
     entities = entities_of(q)
+    fault_re, param_re, term_re, procedure_re, connective_re = _patterns()
     if len(q) <= 20 and _CHITCHAT.search(q):
         return IntentResult("chitchat", entities)
-    fault_text = _NO_FAULT_TERM.sub("", q)
-    # 多实体对比优先于故障意图：避免“E-05 和 E-06 的区别”被单一故障规则截走
-    if _CONNECTIVE.search(q) and len(entities) >= 2:
+    fault_text = _strip_exceptions(q)
+    # 多实体对比优先于故障意图：避免“两个编号的区别”被单一故障规则截走
+    if connective_re.search(q) and len(entities) >= 2:
         return IntentResult("multihop", entities)
-    if _FAULT.search(fault_text) or _FAULT_CODE.search(q):
+    if fault_re.search(fault_text) or _fault_code_pattern().search(q):
         return IntentResult("fault", entities)
     # 多跳：连接词 + ≥2 实体，或“对比型术语问题”
-    if _TERM.search(q) and _CONNECTIVE.search(q):
+    if term_re.search(q) and connective_re.search(q):
         return IntentResult("multihop", entities)
-    if _PARAM.search(q):
+    if param_re.search(q):
         return IntentResult("param", entities)
-    if _TERM.search(q):
+    if term_re.search(q):
         return IntentResult("term", entities)
-    if _PROCEDURE.search(q):
+    if procedure_re.search(q):
         return IntentResult("procedure", entities)
     return IntentResult("general", entities)

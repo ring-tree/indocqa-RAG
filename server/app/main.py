@@ -24,7 +24,9 @@ from app.api.v1.router import router as v1_router
 from app.attachments import storage as attachment_storage
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.core.runtime_overrides import clear_overrides
 from app.indexing.lock import acquire_server_lock, release_server_lock
+from app.packs.legacy_adapter import enable_legacy_pack
 from app.session import store as session_store
 
 logger = logging.getLogger("indocqa")
@@ -53,17 +55,31 @@ async def _session_gc(settings) -> None:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     acquire_server_lock(settings)
+    if settings.legacy_pack:
+        try:
+            enabled = enable_legacy_pack(
+                settings.legacy_pack, settings.packs_dir, settings.version
+            )
+            logger.info("旧链路已加载 Domain Pack：%s", enabled)
+        except Exception as e:  # noqa: BLE001 Pack 失败不阻塞旧链路启动
+            clear_overrides()
+            logger.warning("旧链路 Domain Pack 加载失败，使用默认配置：%s", e)
+    else:
+        clear_overrides()
     removed = await asyncio.to_thread(_maintenance, settings)
     if removed:
         logger.info("会话清理：删除 %s 个超过 %s 天的会话", removed, settings.session_ttl_days)
     try:
         from app.indexing.folders import migrate_folders, normalize_display_names
 
-        stats = migrate_folders(settings)
-        if stats.get("migrated"):
-            logger.info(
-                "目录迁移：%s 份文档补分类，目录 %s 个", stats["migrated"], stats["folders"]
-            )
+        if settings.folder_migration_enabled:
+            stats = migrate_folders(settings)
+            if stats.get("migrated"):
+                logger.info(
+                    "目录迁移：%s 份文档补分类，目录 %s 个", stats["migrated"], stats["folders"]
+                )
+        else:
+            logger.info("目录迁移默认关闭（INDOCQA_FOLDER_MIGRATION_ENABLED=false）")
         renamed = normalize_display_names(settings)
         if renamed:
             logger.info("文档名修正：%s 份上传文档去除临时前缀", renamed)

@@ -9,6 +9,7 @@ import re
 from collections import defaultdict
 
 from app.core.config import get_settings
+from app.core.runtime_overrides import get_overrides
 
 # 中文（英文/缩写） 与 缩写（中文全称） 两种定义形态
 _PAIR_ZH = re.compile(r"([\u4e00-\u9fff]{2,12})\s*[（(]([A-Za-z][A-Za-z0-9 .\-/]{2,40})[)）]")
@@ -17,11 +18,8 @@ _PAIR_EN = re.compile(r"\b([A-Za-z][A-Za-z0-9\-]{2,30})\s*\(([^()]{2,40}?)\)")
 _MAX_EXPANSION = 6
 
 
-def _seed_path(settings) -> pathlib.Path:
-    return pathlib.Path(settings.terms_file).parent / "seed.json"
-
-
 def load_clusters(settings=None) -> list[list[str]]:
+    """KB 簇缓存优先；缺失时用 Pack 种子 + 语料抽取重建（写入 KB 级缓存）。"""
     settings = settings or get_settings()
     path = pathlib.Path(settings.terms_file)
     if not path.exists():
@@ -46,13 +44,14 @@ def build_clusters(settings=None) -> list[list[str]]:
         if a != b:
             parent[find(a)] = find(b)
 
-    seed_file = _seed_path(settings)
     protected: set[str] = set()
-    if seed_file.exists():
-        for cluster in json.loads(seed_file.read_text(encoding="utf-8"))["clusters"]:
-            protected.update(m.lower() for m in cluster)
-            for m in cluster[1:]:
-                union(cluster[0], m)
+    overrides = get_overrides()
+    if overrides and overrides.terms_clusters:
+        for canonical, members in overrides.terms_clusters.items():
+            protected.add(canonical.lower())
+            protected.update(member.lower() for member in members)
+            for member in members:
+                union(canonical, member)
 
     for a, b in _extract_pairs(settings):
         union(a.strip(), b.strip())

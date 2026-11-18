@@ -8,12 +8,14 @@ import ChatView from "./pages/ChatView";
 import DocsView from "./pages/DocsView";
 import EngineConsole from "./pages/EngineConsole";
 import { deleteSession, fetchSessions } from "./lib/api";
+import { fetchUiProfile } from "./lib/engineApi";
+import type { UiProfile } from "./lib/engineApi";
 import type { Session } from "./lib/types";
 
-const EXAMPLES = [
-  "空压机报错 E-05 应该怎么处理？",
-  "MTBF 和平均无故障时间是同一个指标吗？额定值是多少？",
-  "储气罐的作用是什么？",
+const GENERIC_EXAMPLES = [
+  "这个系统能做什么？",
+  "支持哪些文档格式？",
+  "如何提高检索命中率？",
 ];
 
 type Theme = "light" | "dark";
@@ -53,6 +55,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [kb, setKb] = useState<{ documents: number; chunks: number } | null>(null);
+  const [uiProfile, setUiProfile] = useState<UiProfile | null>(null);
   const [theme, setTheme] = useState<Theme>(() =>
     localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark",
   );
@@ -231,6 +234,9 @@ export default function App() {
   useEffect(() => {
     void refreshSessions(true);
     refreshKb();
+    fetchUiProfile()
+      .then(setUiProfile)
+      .catch(() => setUiProfile(null));
   }, [refreshSessions, refreshKb]);
 
   useEffect(() => {
@@ -269,7 +275,7 @@ export default function App() {
           sessions={sessions}
           activeId={activeId}
           tab={tab}
-          subtitle="工业技术文档 · 自适应检索问答"
+          subtitle={uiProfile?.subtitle || "企业知识库智能问答"}
           onTab={changeTab}
           onSelect={selectSession}
           onNew={newChat}
@@ -344,7 +350,9 @@ export default function App() {
             onActiveId={setActiveId}
             onRefreshSessions={refreshSessionsOnly}
             className={tab === "chat" ? "" : "hidden"}
-            examples={EXAMPLES}
+            examples={
+              uiProfile?.examples?.length ? uiProfile.examples : GENERIC_EXAMPLES
+            }
             active={tab === "chat"}
           />
           <DocsView className={tab === "docs" ? "" : "hidden"} onChanged={refreshKb} />

@@ -18,6 +18,12 @@ export interface EnginePack {
   engine_range?: string;
 }
 
+export interface UiProfile {
+  subtitle: string;
+  examples: string[];
+  folderExample: string;
+}
+
 export interface ConfigImpact {
   requiresNewBuild: boolean;
   rebuildMode: string | null;
@@ -138,4 +144,9 @@ export async function bindEnginePack(
     method: "POST",
     body: JSON.stringify({ packId, version }),
   });
+}
+
+export async function fetchUiProfile(): Promise<UiProfile> {
+  const body = await request<{ data: UiProfile }>("/api/v1/ui-profile");
+  return body.data;
 }

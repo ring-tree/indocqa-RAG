@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from app.context.schema import PersonaFact
+from app.core.runtime_overrides import get_overrides
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS user_profile (
@@ -47,6 +48,15 @@ def _connect(path: str):
         con.close()
 
 
+def _role_pattern() -> re.Pattern:
+    overrides = get_overrides()
+    roles = overrides.persona_roles if overrides else []
+    if not roles:
+        return _ROLE
+    suffix = "|".join(re.escape(role) for role in roles)
+    return re.compile(rf"我是(?:一名|一个)?([\u4e00-\u9fffA-Za-z]{{2,20}}?)({suffix})")
+
+
 def extract_persona_signals(text: str) -> list[PersonaFact]:
     facts: list[PersonaFact] = []
     match = _LANGUAGE.search(text or "")
@@ -56,7 +66,7 @@ def extract_persona_signals(text: str) -> list[PersonaFact]:
     match = _STYLE.search(text or "")
     if match:
         facts.append(PersonaFact("style", match.group(0)[-2:], 0.85, "explicit"))
-    match = _ROLE.search(text or "")
+    match = _role_pattern().search(text or "")
     if match:
         facts.append(PersonaFact("role", f"{match.group(1)}{match.group(2)}", 0.8, "explicit"))
     match = _FOCUS.search(text or "")

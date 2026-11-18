@@ -61,7 +61,7 @@ def test_code_bonus_matches_dash_alias():
 # ---- 术语归一（T2.2）----
 
 
-def test_clusters_at_least_30_and_query_expansion(tmp_settings):
+def test_clusters_at_least_30_and_query_expansion(tmp_settings, industrial_pack):
     clusters = load_clusters(tmp_settings)
     assert len(clusters) >= 30, f"簇数量不足: {len(clusters)}"
     expanded, used = expand_query("MTBF 是什么", clusters)
@@ -69,7 +69,7 @@ def test_clusters_at_least_30_and_query_expansion(tmp_settings):
     assert used
 
 
-def test_corpus_extraction_merges_into_seed(tmp_settings):
+def test_corpus_extraction_merges_into_seed(tmp_settings, industrial_pack):
     clusters = build_clusters(tmp_settings)
     lub = [c for c in clusters if "LUB" in c]
     assert lub, "语料抽取未并入 LUB 簇"
@@ -135,7 +135,7 @@ async def test_param_intent_boosts_table(tmp_settings):
 
 
 @pytest.mark.asyncio
-async def test_term_expansion_ablation_switch(tmp_settings, monkeypatch):
+async def test_term_expansion_ablation_switch(tmp_settings, monkeypatch, industrial_pack):
     from app.graph.graph import run_retrieval
 
     q = "MTBF 是什么意思"

@@ -32,6 +32,8 @@ _BLOCKED_SUFFIXES = {
     ".jar",
 }
 _BLOCKS = {
+    "parser": "parser",
+    "terms": "terms",
     "folders": "folders",
     "classification": "classification",
     "intent": "intent",

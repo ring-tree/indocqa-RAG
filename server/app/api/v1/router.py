@@ -25,6 +25,7 @@ from app.core.exceptions import (
     ParamError,
 )
 from app.core.llm import LLMGateway
+from app.core.runtime_overrides import get_overrides
 from app.engine.pipeline import ChunkInput
 from app.engine.runtime import get_runtime
 from app.packs.diff import diff_packs
@@ -52,6 +53,10 @@ class BuildCreate(BaseModel):
     pipelineVersion: str = ""
     domainPackId: str = ""
     domainPackVersion: str = ""
+
+
+class RollbackRequest(BaseModel):
+    buildId: str = Field(min_length=1)
 
 
 class DocumentCreate(BaseModel):
@@ -198,6 +203,20 @@ def health() -> dict:
 @router.get("/models")
 def models() -> dict:
     return {"data": LLMGateway(get_settings()).profiles()}
+
+
+@router.get("/ui-profile")
+def ui_profile() -> dict:
+    overrides = get_overrides()
+    ui = overrides.ui if overrides and overrides.ui else {}
+    return {
+        "data": {
+            "subtitle": ui.get("subtitle") or "企业知识库智能问答",
+            "examples": ui.get("examples")
+            or ["这个系统能做什么？", "支持哪些文档格式？", "如何提高检索命中率？"],
+            "folderExample": ui.get("folder_example") or "",
+        }
+    }
 
 
 @router.get("/embedding-models")
@@ -514,13 +533,33 @@ def activate_build(build_id: str) -> dict:
     build = _build_or_404(build_id)
     if build["status"] == "active":
         return {"data": {"buildId": build_id, "status": "active", "noop": True}}
-    if build["status"] not in {"draft", "ready"}:
+    if build["status"] not in {"draft", "ready", "archived"}:
         raise BuildStateConflictError(
             f"Build 状态为 {build['status']}，不允许激活"
         )
     plane.activate_build(build["kb_id"], build_id)
-    plane.write_audit("build.activate", "build", build_id, kb_id=build["kb_id"])
+    action = "build.rollback" if build["status"] == "archived" else "build.activate"
+    plane.write_audit(action, "build", build_id, kb_id=build["kb_id"])
     return {"data": {"buildId": build_id, "status": "active", "noop": False}}
+
+
+@router.post("/kbs/{kb_id}/rollback")
+def rollback_build(kb_id: str, body: RollbackRequest) -> dict:
+    """回滚到指定历史 Build（archived/ready）；当前 active 转为 archived。"""
+    _kb_or_404(kb_id)
+    build = _build_or_404(body.buildId)
+    if build["kb_id"] != kb_id:
+        raise ParamError("Build 不属于该知识库")
+    if build["status"] == "active":
+        return {"data": {"buildId": build["id"], "status": "active", "noop": True}}
+    if build["status"] not in {"archived", "ready"}:
+        raise BuildStateConflictError(
+            f"Build 状态为 {build['status']}，不允许回滚"
+        )
+    plane = get_runtime().plane
+    plane.activate_build(kb_id, build["id"])
+    plane.write_audit("build.rollback", "build", build["id"], kb_id=kb_id)
+    return {"data": {"buildId": build["id"], "status": "active", "noop": False}}
 
 
 @router.post("/builds/{build_id}/reconcile")

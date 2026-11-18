@@ -93,7 +93,7 @@ export function PromptModal({
   title,
   description,
   label = "目录路径",
-  placeholder = "例如 设备手册/新机组",
+  placeholder = "例如 产品手册/安装指南",
   initialValue = "",
   confirmText = "确定",
   busy = false,

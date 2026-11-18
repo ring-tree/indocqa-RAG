@@ -203,7 +203,7 @@ function PathPicker({
           <input
             type="text"
             className="ui-search min-w-0 flex-1 px-3 py-2 text-xs outline-none"
-            placeholder="新建目录，例如 设备手册/新机组"
+            placeholder="新建目录，例如 产品手册/安装指南"
             value={newPath}
             onChange={(e) => setNewPath(e.target.value)}
             aria-label="新建目录路径"
@@ -1884,7 +1884,7 @@ function DocsView({ className = "", onChanged }: Props) {
         placeholder={
           folderForm?.mode === "create" && activeFolder
             ? "输入子目录名称，可用 / 创建多级"
-            : "例如 设备手册/新机组"
+            : "例如 产品手册/安装指南"
         }
         initialValue={folderForm?.value ?? ""}
         confirmText={folderForm?.mode === "rename" ? "保存" : "创建"}

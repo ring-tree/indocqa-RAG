@@ -59,6 +59,33 @@ def test_v1_kb_config_build_flow(client):
     assert kb["activeBuildId"] == build_id
 
 
+def test_v1_build_rollback(client):
+    """archived Build 可重新激活；专用 rollback 端点切换 active/previous。"""
+    client.post("/api/v1/kbs", json={"name": "回滚测试", "kbId": "kb_rollback"})
+    first = client.post(
+        "/api/v1/kbs/kb_rollback/builds", json={"preset": "balanced"}
+    ).json()["data"]["buildId"]
+    client.post(f"/api/v1/builds/{first}/activate")
+    second = client.post(
+        "/api/v1/kbs/kb_rollback/builds", json={"preset": "recall"}
+    ).json()["data"]["buildId"]
+    client.post(f"/api/v1/builds/{second}/activate")
+
+    restored = client.post(f"/api/v1/builds/{first}/activate")
+    assert restored.status_code == 200
+    kb = client.get("/api/v1/kbs/kb_rollback").json()["data"]
+    assert kb["activeBuildId"] == first
+    assert kb["previousBuildId"] == second
+
+    rolled = client.post(
+        "/api/v1/kbs/kb_rollback/rollback", json={"buildId": second}
+    )
+    assert rolled.status_code == 200
+    kb = client.get("/api/v1/kbs/kb_rollback").json()["data"]
+    assert kb["activeBuildId"] == second
+    assert kb["previousBuildId"] == first
+
+
 def test_v1_error_envelope_has_name_and_request_id(client):
     response = client.get("/api/v1/kbs/missing")
     assert response.status_code == 404

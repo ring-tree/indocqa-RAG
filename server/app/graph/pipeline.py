@@ -1029,7 +1029,7 @@ async def _confidence(
         level = _downgrade(level)
         reasons.append("回答缺少有效引用，已降档")
     # 有有效引用且检索置信度高时，不允许自评直接把结果打到 low；
-    # 纯关键词精确命中（sim=None）时同样保底 mid，避免故障码类正确回答被判低置信
+    # 纯关键词精确命中（sim=None）时同样保底 mid，避免编号类正确回答被判低置信
     keyword_only = bool(hits) and not sims
     floor = (
         "mid"
